@@ -8,15 +8,9 @@
 
 namespace TensorUtils {
 
-size_t ElementCount(
-    const tflite::Tensor* tensor);
-
-size_t BufferBytes(
-    const tflite::Tensor* tensor,
-    const tflite::Model* model);
-
-std::string Shape(
-    const tflite::Tensor* tensor);
+size_t ElementCount(const tflite::Tensor* tensor);
+size_t BufferBytes(const tflite::Tensor* tensor, const tflite::Model* model);
+std::string Shape(const tflite::Tensor* tensor);
 
 }
 

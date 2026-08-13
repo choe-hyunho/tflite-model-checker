@@ -96,18 +96,13 @@ const ResolverEntry kResolverTable[] = {
     { tflite::BuiltinOperator_UNPACK,                  "AddUnpack" },
 };
 
-const size_t kResolverTableSize =
-    sizeof(kResolverTable) /
-    sizeof(kResolverTable[0]);
+const size_t kResolverTableSize = sizeof(kResolverTable) / sizeof(kResolverTable[0]);
 
-const char* ResolverMethodName(
-    tflite::BuiltinOperator op)
+const char* ResolverMethodName(tflite::BuiltinOperator op)
 {
     for (size_t i = 0; i < kResolverTableSize; ++i) {
-
         if (kResolverTable[i].op == op)
             return kResolverTable[i].method;
     }
-
     return nullptr;
 }

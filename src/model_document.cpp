@@ -15,62 +15,58 @@ const tflite::Model* ModelDocument::Model() const
     return model_;
 }
 
-
 const tflite::SubGraph* ModelDocument::PrimarySubgraph() const
 {
-    if (model_ == nullptr)
+    if (model_ == nullptr) {
         return nullptr;
+    }
 
     const auto* subgraphs = model_->subgraphs();
 
-    if (subgraphs == nullptr)
+    if (subgraphs == nullptr) {
         return nullptr;
+    }
 
-    if (subgraphs->size() == 0)
+    if (subgraphs->size() == 0) {
         return nullptr;
+    }
 
     return subgraphs->Get(0);
 }
 
 const flatbuffers::Vector<flatbuffers::Offset<tflite::SubGraph>>* ModelDocument::Subgraphs() const
 {
-    return model_
-        ? model_->subgraphs()
-        : nullptr;
+    return model_ ? model_->subgraphs() : nullptr;
 }
 
 const tflite::OperatorCode* ModelDocument::OperatorCode(size_t index) const
 {
     const auto* codes = OperatorCodes();
 
-    if (codes == nullptr)
+    if (codes == nullptr) {
         return nullptr;
+    }
 
-    if (index >= codes->size())
+    if (index >= codes->size()) {
         return nullptr;
+    }
 
     return codes->Get(index);
 }
 
 const flatbuffers::Vector<flatbuffers::Offset<tflite::OperatorCode>>* ModelDocument::OperatorCodes() const
 {
-    return model_
-        ? model_->operator_codes()
-        : nullptr;
+    return model_ ? model_->operator_codes() : nullptr;
 }
 
 const flatbuffers::Vector<flatbuffers::Offset<tflite::Buffer>>* ModelDocument::Buffers() const
 {
-    return model_
-        ? model_->buffers()
-        : nullptr;
+    return model_ ? model_->buffers() : nullptr;
 }
 
 const flatbuffers::Vector<flatbuffers::Offset<tflite::Metadata>>* ModelDocument::Metadata() const
 {
-    return model_
-        ? model_->metadata()
-        : nullptr;
+    return model_ ? model_->metadata() : nullptr;
 }
 
 size_t ModelDocument::SubgraphCount() const

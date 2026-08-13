@@ -8,11 +8,7 @@ class TensorGraph;
 
 class ModelSummaryPrinter {
 public:
-    ModelSummaryPrinter(
-        ConsolePrinter& printer,
-        const ModelDocument& document,
-        const TensorGraph& graph);
-
+    ModelSummaryPrinter(ConsolePrinter& printer, const ModelDocument& document, const TensorGraph& graph);
     void Print() const;
 
 private:
@@ -24,14 +20,12 @@ private:
     size_t OperatorCount() const;
     size_t OperatorCodeCount() const;
     size_t ConstantDataBytes() const;
-
     size_t ParameterCount() const;
     size_t ParameterBytes() const;
-    size_t TensorElementCount(
-        size_t tensor_index) const;
-    size_t TensorBufferBytes(
-        size_t tensor_index) const;
+    size_t TensorElementCount(size_t tensor_index) const;
+    size_t TensorBufferBytes(size_t tensor_index) const;
 
+private:
     ConsolePrinter& printer_;
     const ModelDocument& document_;
     const TensorGraph& graph_;

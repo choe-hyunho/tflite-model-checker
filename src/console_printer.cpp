@@ -21,10 +21,7 @@ void ConsolePrinter::Print(const char* fmt, ...) const
     va_end(ap);
 }
 
-void ConsolePrinter::PrintMessage(
-    const char* prefix,
-    const char* fmt,
-    va_list ap) const
+void ConsolePrinter::PrintMessage(const char* prefix, const char* fmt, va_list ap) const
 {
     fprintf(fp_, "%s: ", prefix);
     vfprintf(fp_, fmt, ap);
@@ -35,25 +32,21 @@ void ConsolePrinter::PrintMessage(
  * Document
  *****************************************************************************/
 
-void ConsolePrinter::Banner(
-    const char* title,
-    const char* version) const
+void ConsolePrinter::Banner(const char* title, const char* version) const
 {
     Separator('=');
     Print("%s v%s\n", title, version);
     Separator('=');
 }
 
-void ConsolePrinter::Section(
-    const char* title) const
+void ConsolePrinter::Section(const char* title) const
 {
     Blank();
     Print("%s\n", title);
     Separator('-');
 }
 
-void ConsolePrinter::SubSection(
-    const char* title) const
+void ConsolePrinter::SubSection(const char* title) const
 {
     Blank();
     Print("%s\n", title);
@@ -69,8 +62,7 @@ void ConsolePrinter::Blank() const
     Print("\n");
 }
 
-void ConsolePrinter::Line(
-    const char* text) const
+void ConsolePrinter::Line(const char* text) const
 {
     Print("%s\n", text);
 }
@@ -87,35 +79,23 @@ void ConsolePrinter::Separator(char ch) const
  * Key / Value
  *****************************************************************************/
 
-void ConsolePrinter::Key(
-    const char* name,
-    const char* value) const
+void ConsolePrinter::Key(const char* name, const char* value) const
 {
-    Print("%-*s : %s\n",
-          kKeyWidth,
-          name,
-          value ? value : "");
+    Print("%-*s : %s\n", kKeyWidth, name, value ? value : "");
 }
 
 //void ConsolePrinter::Key(
 //    const std::string& name,
 //    const std::string& value) const = delete;
 
-void ConsolePrinter::Key(
-    const char* name,
-    const std::string& value) const
+void ConsolePrinter::Key(const char* name, const std::string& value) const
 {
     Key(name, value.c_str());
 }
 
-void ConsolePrinter::Key(
-    const char* name,
-    size_t value) const
+void ConsolePrinter::Key(const char* name, size_t value) const
 {
-    Print("%-*s : %zu\n",
-          kKeyWidth,
-          name,
-          value);
+    Print("%-*s : %zu\n", kKeyWidth, name, value);
 }
 
 void ConsolePrinter::KeyBytes(
@@ -123,10 +103,7 @@ void ConsolePrinter::KeyBytes(
     size_t bytes) const
 {
     if (bytes < 1024) {
-        Print("%-*s : %zu bytes\n",
-              kKeyWidth,
-              name,
-              bytes);
+        Print("%-*s : %zu bytes\n", kKeyWidth, name, bytes);
         return;
     }
 
@@ -146,38 +123,24 @@ void ConsolePrinter::KeyBytes(
         unit = "KB";
     }
 
-    Print("%-*s : %.1f %s (%zu bytes)\n",
-          kKeyWidth,
-          name,
-          value,
-          unit,
-          bytes);
+    Print("%-*s : %.1f %s (%zu bytes)\n", kKeyWidth, name, value, unit, bytes);
 }
 
-void ConsolePrinter::KeyPercent(
-    const char* name,
-    double value) const
+void ConsolePrinter::KeyPercent(const char* name, double value) const
 {
-    Print("%-*s : %.1f %%\n",
-          kKeyWidth,
-          name,
-          value);
+    Print("%-*s : %.1f %%\n", kKeyWidth, name, value);
 }
 
 /******************************************************************************
  * Status
  *****************************************************************************/
 
-void ConsolePrinter::Status(
-    const char* name,
-    bool pass) const
+void ConsolePrinter::Status(const char* name, bool pass) const
 {
     Status(name, pass ? "PASS" : "FAIL");
 }
 
-void ConsolePrinter::Status(
-    const char* name,
-    const char* status) const
+void ConsolePrinter::Status(const char* name, const char* status) const
 {
     Key(name, status);
 }
@@ -186,9 +149,7 @@ void ConsolePrinter::Status(
  * Messages
  *****************************************************************************/
 
-void ConsolePrinter::Info(
-    const char* fmt,
-    ...) const
+void ConsolePrinter::Info(const char* fmt, ...) const
 {
     va_list ap;
 
@@ -197,9 +158,7 @@ void ConsolePrinter::Info(
     va_end(ap);
 }
 
-void ConsolePrinter::Warning(
-    const char* fmt,
-    ...) const
+void ConsolePrinter::Warning(const char* fmt, ...) const
 {
     va_list ap;
 
@@ -208,9 +167,7 @@ void ConsolePrinter::Warning(
     va_end(ap);
 }
 
-void ConsolePrinter::Error(
-    const char* fmt,
-    ...) const
+void ConsolePrinter::Error(const char* fmt, ...) const
 {
     va_list ap;
 
@@ -223,32 +180,20 @@ void ConsolePrinter::Error(
  * Table
  *****************************************************************************/
 
-void ConsolePrinter::TableHeader(
-    const char* c1,
-    const char* c2,
-    const char* c3,
-    const char* c4) const
+void ConsolePrinter::TableHeader(const char* c1, const char* c2, const char* c3, const char* c4) const
 {
     TableRow(c1, c2, c3, c4);
     Separator('-');
 }
 
-void ConsolePrinter::TableRow(
-    const char* c1,
-    const char* c2,
-    const char* c3,
-    const char* c4) const
+void ConsolePrinter::TableRow(const char* c1, const char* c2, const char* c3, const char* c4) const
 {
     Print("%-*s", kCol1, c1 ? c1 : "");
-
     if (c2)
         Print("%-*s", kCol2, c2);
-
     if (c3)
         Print("%-*s", kCol3, c3);
-
     if (c4)
         Print("%s", c4);
-
     Print("\n");
 }

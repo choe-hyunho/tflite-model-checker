@@ -8,10 +8,7 @@ class ModelDocument;
 
 class ValidationPrinter {
 public:
-    ValidationPrinter(
-        ConsolePrinter& printer,
-        const ModelDocument& document);
-
+    ValidationPrinter(ConsolePrinter& printer, const ModelDocument& document);
     void Print() const;
 
 private:
@@ -19,10 +16,7 @@ private:
     bool CheckOperatorIndices() const;
     bool CheckBuffers() const;
     bool CheckGraph() const;
-
-    bool CheckTensorIndex(
-        size_t tensor_index,
-        size_t tensor_count) const;
+    bool CheckTensorIndex(size_t tensor_index, size_t tensor_count) const;
 
 private:
     ConsolePrinter& printer_;

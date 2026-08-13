@@ -10,20 +10,14 @@ class ModelDocument;
 
 class ModelPrinter {
 public:
-    ModelPrinter(
-        ConsolePrinter& printer,
-        const ModelDocument& document);
-
+    ModelPrinter(ConsolePrinter& printer, const ModelDocument& document);
     void Print() const;
     void PrintMetadata() const;
     void PrintOperators() const;
 
 private:
     void PrintInputsOutputs() const;
-
-    void PrintTensorInterface(
-        const char* title,
-        const flatbuffers::Vector<int32_t>* indices) const;
+    void PrintTensorInterface(const char* title, const flatbuffers::Vector<int32_t>* indices) const;
 
 private:
     ConsolePrinter& printer_;

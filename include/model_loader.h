@@ -11,17 +11,11 @@
 class ModelLoader {
 public:
     ModelLoader();
-
     bool Load(const std::string& filename);
-
     bool IsLoaded() const;
-
     const uint8_t* Data() const;
-
     size_t Size() const;
-
     const tflite::Model* GetModel() const;
-
     const std::string& Filename() const;
 
 private:

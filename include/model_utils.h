@@ -9,57 +9,33 @@
 /******************************************************************************
  * Tensor
  *****************************************************************************/
-
-std::string TensorShapeToString(
-    const flatbuffers::Vector<int32_t>* dims);
-
-const char* TensorTypeName(
-    TfLiteType type);
+std::string TensorShapeToString(const flatbuffers::Vector<int32_t>* dims);
+const char* TensorTypeName(TfLiteType type);
 
 /******************************************************************************
  * Operators
  *****************************************************************************/
-
-tflite::BuiltinOperator BuiltinOperatorCode(
-    const tflite::OperatorCode* opcode);
-
-const char* BuiltinOperatorName(
-    tflite::BuiltinOperator op);
-
-const char* OperatorName(
-    const tflite::OperatorCode* opcode);
-
-const char* BuiltinOptionsName(
-    tflite::BuiltinOptions type);
-
-const char* ActivationFunctionName(
-    tflite::ActivationFunctionType type);
-
-const char* FullyConnectedOptionsWeightsFormatName(
-    tflite::FullyConnectedOptionsWeightsFormat format);
-
-const char* CustomOptionsFormatName(
-    tflite::CustomOptionsFormat type);
+tflite::BuiltinOperator BuiltinOperatorCode(const tflite::OperatorCode* opcode);
+const char* BuiltinOperatorName(tflite::BuiltinOperator op);
+const char* OperatorName(const tflite::OperatorCode* opcode);
+const char* BuiltinOptionsName(tflite::BuiltinOptions type);
+const char* ActivationFunctionName(tflite::ActivationFunctionType type);
+const char* FullyConnectedOptionsWeightsFormatName(tflite::FullyConnectedOptionsWeightsFormat format);
+const char* CustomOptionsFormatName(tflite::CustomOptionsFormat type);
 
 /******************************************************************************
  * Quantization
  *****************************************************************************/
-
-std::string QuantizationToString(
-    const tflite::QuantizationParameters* quantization);
+std::string QuantizationToString(const tflite::QuantizationParameters* quantization);
 
 /******************************************************************************
  * Buffer
  *****************************************************************************/
-
-std::string BufferSizeToString(
-    const tflite::Buffer* buffer);
+std::string BufferSizeToString(const tflite::Buffer* buffer);
 
 /******************************************************************************
  * Misc
  *****************************************************************************/
-
-std::string BoolToString(
-    bool value);
+std::string BoolToString(bool value);
 
 #endif

@@ -7,10 +7,7 @@ class ModelDocument;
 
 class ReshapePrinter {
 public:
-    ReshapePrinter(
-        ConsolePrinter& printer,
-        const ModelDocument& document);
-
+    ReshapePrinter(ConsolePrinter& printer, const ModelDocument& document);
     void Print() const;
 
 private:

@@ -3,13 +3,8 @@
 #include "console_printer.h"
 #include "model_document.h"
 
-MetadataPrinter::MetadataPrinter(
-    ConsolePrinter& printer,
-    const ModelDocument& document)
-    : printer_(printer),
-      document_(document)
-{
-}
+MetadataPrinter::MetadataPrinter(ConsolePrinter& printer, const ModelDocument& document)
+    : printer_(printer), document_(document) {}
 
 void MetadataPrinter::Print() const
 {
@@ -27,33 +22,15 @@ void MetadataPrinter::Print() const
         return;
     }
 
-    printer_.TableHeader(
-        "Index",
-        "Name",
-        "Buffer");
+    printer_.TableHeader("Index", "Name", "Buffer");
 
     for (size_t i = 0; i < metadata->size(); ++i) {
-
         const auto* entry = metadata->Get(i);
-
         char index[16];
         char buffer[16];
 
-        snprintf(index,
-                 sizeof(index),
-                 "%zu",
-                 i);
-
-        snprintf(buffer,
-                 sizeof(buffer),
-                 "%u",
-                 entry->buffer());
-
-        printer_.TableRow(
-            index,
-            entry->name()
-                ? entry->name()->c_str()
-                : "",
-            buffer);
+        snprintf(index, sizeof(index), "%zu", i);
+        snprintf(buffer, sizeof(buffer), "%u", entry->buffer());
+        printer_.TableRow(index, entry->name() ? entry->name()->c_str() : "", buffer);
     }
 }

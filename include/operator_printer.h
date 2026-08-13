@@ -6,18 +6,11 @@
 
 class OperatorPrinter {
 public:
-    OperatorPrinter(
-        ConsolePrinter& printer,
-        const ModelDocument& document);
-
+    OperatorPrinter(ConsolePrinter& printer, const ModelDocument& document);
     void Print() const;
 
 private:
-    void PrintOperator(
-        size_t index,
-        const tflite::Operator* op,
-        const tflite::OperatorCode* opcode,
-        const tflite::SubGraph* subgraph) const;
+    void PrintOperator(size_t index, const tflite::Operator* op, const tflite::OperatorCode* opcode, const tflite::SubGraph* subgraph) const;
 
 private:
     ConsolePrinter& printer_;

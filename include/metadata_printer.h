@@ -6,10 +6,7 @@ class ModelDocument;
 
 class MetadataPrinter {
 public:
-    MetadataPrinter(
-        ConsolePrinter& printer,
-        const ModelDocument& document);
-
+    MetadataPrinter(ConsolePrinter& printer, const ModelDocument& document);
     void Print() const;
 
 private:

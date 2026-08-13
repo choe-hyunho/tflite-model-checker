@@ -16,7 +16,6 @@ class Tensor;
 class TensorPrinter {
 public:
     TensorPrinter(ConsolePrinter& printer, const ModelDocument& document, const TensorGraph& graph);
-
     void Print() const;
 
 private:

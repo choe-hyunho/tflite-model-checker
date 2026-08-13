@@ -8,10 +8,7 @@ class ModelDocument;
 
 class ResolverGenerator {
 public:
-    ResolverGenerator(
-        ConsolePrinter& printer,
-        const ModelDocument& document);
-
+    ResolverGenerator(ConsolePrinter& printer, const ModelDocument& document);
     void Print() const;
 
 private:

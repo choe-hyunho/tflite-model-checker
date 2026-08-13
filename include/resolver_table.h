@@ -11,7 +11,6 @@ struct ResolverEntry {
 extern const ResolverEntry kResolverTable[];
 extern const size_t kResolverTableSize;
 
-const char* ResolverMethodName(
-    tflite::BuiltinOperator op);
+const char* ResolverMethodName(tflite::BuiltinOperator op);
 
 #endif

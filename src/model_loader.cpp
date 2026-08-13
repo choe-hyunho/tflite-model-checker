@@ -2,36 +2,30 @@
 
 #include <fstream>
 
-ModelLoader::ModelLoader()
-{
-}
+ModelLoader::ModelLoader() {}
 
-bool ModelLoader::Load(
-    const std::string& filename)
+bool ModelLoader::Load(const std::string& filename)
 {
     filename_ = filename;
     data_.clear();
 
-    std::ifstream file(
-        filename,
-        std::ios::binary | std::ios::ate);
+    std::ifstream file(filename, std::ios::binary | std::ios::ate);
 
-    if (!file)
+    if (!file) {
         return false;
+    }
 
     const std::streamsize size = file.tellg();
 
-    if (size <= 0)
+    if (size <= 0) {
         return false;
+    }
 
     data_.resize(static_cast<size_t>(size));
 
     file.seekg(0, std::ios::beg);
 
-    if (!file.read(
-            reinterpret_cast<char*>(data_.data()),
-            size)) {
-
+    if (!file.read(reinterpret_cast<char*>(data_.data()), size)) {
         data_.clear();
         return false;
     }
@@ -46,9 +40,7 @@ bool ModelLoader::IsLoaded() const
 
 const uint8_t* ModelLoader::Data() const
 {
-    return data_.empty()
-        ? nullptr
-        : data_.data();
+    return data_.empty() ? nullptr : data_.data();
 }
 
 size_t ModelLoader::Size() const
@@ -58,8 +50,9 @@ size_t ModelLoader::Size() const
 
 const tflite::Model* ModelLoader::GetModel() const
 {
-    if (data_.empty())
+    if (data_.empty()) {
         return nullptr;
+    }
 
     return tflite::GetModel(data_.data());
 }

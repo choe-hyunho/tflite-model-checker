@@ -8,7 +8,6 @@ struct OperatorContext {
     const tflite::SubGraph* subgraph;
     const tflite::Operator* op;
     const tflite::OperatorCode* opcode;
-
     int index;
 };
 

@@ -19,13 +19,9 @@ public:
     };
 
     explicit TensorGraph(const ModelDocument& document);
-
     bool Build();
-
     const TensorInfo* Tensor(size_t index) const;
-
     size_t TensorCount() const;
-
     TensorKind Kind(size_t tensor_index) const;
 
 private:

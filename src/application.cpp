@@ -90,17 +90,15 @@ void Application::PrintTensorArena() const
 void Application::PrintReport() const
 {
     ConsolePrinter console;
-
     ModelPrinter model(console, document_);
     ValidationPrinter validation(console, document_);
     MetadataPrinter metadata(console, document_);
     OperatorPrinter operators(console, document_);
     OperatorDetailPrinter details(console, document_);
     ResolverGenerator resolver(console, document_);
-
     TensorGraph tensor_graph(document_);
-    tensor_graph.Build();
 
+    tensor_graph.Build();
     TensorPrinter tensors(console, document_, tensor_graph);
 
     model.Print();
