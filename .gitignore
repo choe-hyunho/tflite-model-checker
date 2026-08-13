@@ -1,0 +1,39 @@
+# Build artifacts
+model-checker
+*.o
+*.obj
+*.exe
+*.so
+*.dll
+*.a
+*.lib
+build/
+bin/
+obj/
+
+# Models and weights (Large files should not be in git)
+models/
+
+# IDE and Editor files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Dependencies and cache
+node_modules/
+.cache/
+__pycache__/
+.venv/
+venv/
+.env
+
+# OS specific
+Thumbs.db
+Desktop.ini
