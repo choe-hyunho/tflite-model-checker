@@ -28,9 +28,7 @@ bool Application::LoadModel()
     if (!loader_.Load(command_line_.model_filename)) {
         return false;
     }
-
     document_ = ModelDocument(loader_.GetModel());
-
     return document_.IsValid();
 }
 
@@ -50,26 +48,22 @@ bool Application::Verify()
     if (!tensor_arena) {
         return false;
     }
-
     memset(tensor_arena, 0, kTensorArenaSize);
 
-    MicroInterpreter interpreter(loader_.GetModel(), resolver, tensor_arena, kTensorArenaSize);
-
-    if (interpreter.AllocateTensors() != kTfLiteOk) {
-        free(tensor_arena);
-        return false;
+    bool result = true;
+    {
+        MicroInterpreter interpreter(loader_.GetModel(), resolver, tensor_arena, kTensorArenaSize);
+        if (interpreter.AllocateTensors() != kTfLiteOk) {
+            result = false;
+        } else {
+            arena_used_ = interpreter.arena_used_bytes();
+            if (interpreter.Invoke() != kTfLiteOk) {
+                result = false;
+            }
+        }
     }
-
-    arena_used_ = interpreter.arena_used_bytes();
-
-    if (interpreter.Invoke() != kTfLiteOk) {
-        free(tensor_arena);
-        return false;
-    }
-
     free(tensor_arena);
-
-    return true;
+    return result;
 }
 
 void Application::PrintTensorArena() const
@@ -83,7 +77,6 @@ void Application::PrintTensorArena() const
     printer.KeyBytes("Configured", kTensorArenaSize);
     printer.KeyBytes("Used", arena_used_);
     printer.KeyBytes("Free", kTensorArenaSize - arena_used_);
-
     printer.KeyPercent("Utilization", static_cast<double>(arena_used_) * 100.0 / static_cast<double>(kTensorArenaSize));
 }
 
@@ -97,10 +90,8 @@ void Application::PrintReport() const
     OperatorDetailPrinter details(console, document_);
     ResolverGenerator resolver(console, document_);
     TensorGraph tensor_graph(document_);
-
     tensor_graph.Build();
     TensorPrinter tensors(console, document_, tensor_graph);
-
     model.Print();
     validation.Print();
     metadata.Print();
@@ -108,9 +99,7 @@ void Application::PrintReport() const
     details.Print();
     resolver.Print();
     tensors.Print();
-
     PrintTensorArena();
-
     ModelSummaryPrinter summary(console, document_, tensor_graph);
     summary.Print();
 }
@@ -120,7 +109,6 @@ int Application::Run()
     if (!LoadModel()) {
         return 2;
     }
-
     PrintReport();
 
     ModelValidator validator(document_);
@@ -130,10 +118,8 @@ int Application::Run()
         printer.Error("Model validation failed");
         return 1;
     }
-
     if (!Verify()) {
         return 3;
     }
-
     return 0;
 }
