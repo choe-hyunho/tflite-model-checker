@@ -24,13 +24,19 @@ private:
     bool ValidateFullyConnected(size_t operator_index, const tflite::Operator* op) const;
     bool ValidateConv2D(size_t operator_index, const tflite::Operator* op) const;
     bool ValidateDepthwiseConv2D(size_t operator_index, const tflite::Operator* op) const;
+    bool ValidateStridedSlice(size_t operator_index, const tflite::Operator* op) const;
     bool ValidateMean(size_t operator_index, const tflite::Operator* op) const;
+    bool ValidateShape(size_t operator_index, const tflite::Operator* op) const;
     bool ValidateReshape(size_t operator_index, const tflite::Operator* op) const;
+    bool ValidatePack(size_t operator_index, const tflite::Operator* op) const;
     bool ValidateSoftmax(size_t operator_index, const tflite::Operator* op) const;
     bool ValidateFullyConnectedOptions(size_t operator_index, const tflite::Operator* op) const;
     bool ValidateConv2DOptions(size_t operator_index, const tflite::Operator* op) const;
     bool ValidateDepthwiseConv2DOptions(size_t operator_index, const tflite::Operator* op) const;
+    bool ValidateStridedSliceOptions(size_t operator_index, const tflite::Operator* op) const;
     bool ValidateMeanOptions(size_t operator_index, const tflite::Operator* op) const;
+    bool ValidateShapeOptions(size_t operator_index, const tflite::Operator* op) const;
+    bool ValidatePackOptions(size_t operator_index, const tflite::Operator* op) const;
     void SetError(size_t operator_index, const char* message) const;
     void SetError(const char* message) const;
 

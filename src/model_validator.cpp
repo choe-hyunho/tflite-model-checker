@@ -481,6 +481,15 @@ bool ModelValidator::ValidateOperators() const
                 valid = false;
             }
             break;
+        case tflite::BuiltinOperator_STRIDED_SLICE:
+            if (!ValidateStridedSlice(op_index, op)) {
+                valid = false;
+                continue;
+            }
+            if (!ValidateStridedSliceOptions(op_index, op)) {
+                valid = false;
+            }
+            break;
         case tflite::BuiltinOperator_MEAN:
             if (!ValidateMean(op_index, op)) {
                 valid = false;
@@ -499,8 +508,26 @@ bool ModelValidator::ValidateOperators() const
                 valid = false;
             }
             break;
+        case tflite::BuiltinOperator_SHAPE:
+            if (!ValidateShape(op_index, op)) {
+                valid = false;
+                continue;
+            }
+            if (!ValidateShapeOptions(op_index, op)) {
+                valid = false;
+            }
+            break;
         case tflite::BuiltinOperator_RESHAPE:
             if (!ValidateReshape(op_index, op)) {
+                valid = false;
+            }
+            break;
+        case tflite::BuiltinOperator_PACK:
+            if (!ValidatePack(op_index, op)) {
+                valid = false;
+                continue;
+            }
+            if (!ValidatePackOptions(op_index, op)) {
                 valid = false;
             }
             break;
@@ -597,23 +624,23 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
     const int32_t weights_index = inputs->Get(1);
     const int32_t bias_index = inputs->Get(2);
     const int32_t output_index = outputs->Get(0);
-    if (input_index < 0 || weights_index < 0 || bias_index < 0 || output_index < 0) {
+    if (input_index < 0 || weights_index < 0 || output_index < 0) {
         SetError(operator_index, "contains a negative tensor index");
         return false;
     }
     const auto* tensors = subgraph->tensors();
     if (static_cast<size_t>(input_index) >= tensors->size() ||
         static_cast<size_t>(weights_index) >= tensors->size() ||
-        static_cast<size_t>(bias_index) >= tensors->size() ||
-        static_cast<size_t>(output_index) >= tensors->size()) {
+        static_cast<size_t>(output_index) >= tensors->size() ||
+        (bias_index >= 0 && static_cast<size_t>(bias_index) >= tensors->size())) {
         SetError(operator_index, "contains an out-of-range tensor index");
         return false;
     }
     const auto* input = tensors->Get(static_cast<size_t>(input_index));
     const auto* weights = tensors->Get(static_cast<size_t>(weights_index));
-    const auto* bias = tensors->Get(static_cast<size_t>(bias_index));
+    const auto* bias = bias_index >= 0 ? tensors->Get(static_cast<size_t>(bias_index)) : nullptr;
     const auto* output = tensors->Get(static_cast<size_t>(output_index));
-    if (input == nullptr || weights == nullptr || bias == nullptr || output == nullptr) {
+    if (input == nullptr || weights == nullptr || output == nullptr || (bias_index >= 0 && bias == nullptr)) {
         SetError(operator_index, "references a null tensor");
         return false;
     }
@@ -623,21 +650,22 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
      */
     const auto input_type = input->type();
     const auto weights_type = weights->type();
-    const auto bias_type = bias->type();
     const auto output_type = output->type();
     if (input_type != weights_type || input_type != output_type) {
         SetError(operator_index, "input, weights and output types differ");
         return false;
     }
+    if (bias_index >= 0) {
+    const auto bias_type = bias->type();
     if (bias_type != tflite::TensorType_INT32 && bias_type != input_type) {
         SetError(operator_index, "bias type is incompatible with input type");
         return false;
     }
-    const auto* input_shape = input->shape();
+}   const auto* input_shape = input->shape();
     const auto* weights_shape = weights->shape();
-    const auto* bias_shape = bias->shape();
+    const auto* bias_shape = bias_index >= 0 ? bias->shape() : nullptr;
     const auto* output_shape = output->shape();
-    if (input_shape == nullptr || weights_shape == nullptr || bias_shape == nullptr || output_shape == nullptr) {
+    if (input_shape == nullptr || weights_shape == nullptr || output_shape == nullptr || (bias_index >= 0 && bias_shape == nullptr)) {
         SetError(operator_index, "one or more tensors have no shape");
         return false;
     }
@@ -651,7 +679,7 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
     /*
      * bias = [output_size]
      */
-    if (bias_shape->size() != 1) {
+    if (bias_index >= 0 && bias_shape->size() != 1) {
         SetError(operator_index, "bias tensor must be rank 1");
         return false;
     }
@@ -665,16 +693,22 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
     }
     const int32_t output_size = weights_shape->Get(0);
     const int32_t input_size = weights_shape->Get(1);
-    const int32_t bias_size = bias_shape->Get(0);
     const int32_t actual_input_size = input_shape->Get(input_shape->size() - 1);
     const int32_t actual_output_size = output_shape->Get(output_shape->size() - 1);
-    if (output_size < 0 || input_size < 0 || bias_size < 0 || actual_input_size < 0 || actual_output_size < 0) {
+    if (output_size < 0 || input_size < 0 || actual_input_size < 0 || actual_output_size < 0) {
         SetError(operator_index, "contains a negative tensor dimension");
         return false;
     }
-    if (bias_size != output_size) {
-        SetError(operator_index, "bias size does not match weights output size");
-        return false;
+    if (bias_index >= 0) {
+        const int32_t bias_size = bias_shape->Get(0);
+        if (bias_size < 0) {
+            SetError(operator_index, "contains a negative tensor dimension");
+            return false;
+        }
+        if (bias_size != output_size) {
+            SetError(operator_index, "bias size does not match weights output size");
+            return false;
+        }
     }
     size_t input_elements = 1;
     if (input->shape() == nullptr || input->shape()->size() == 0) {
@@ -903,6 +937,85 @@ bool ModelValidator::ValidateDepthwiseConv2D(size_t operator_index, const tflite
     return true;
 }
 
+bool ModelValidator::ValidateStridedSlice(size_t operator_index, const tflite::Operator* op) const
+{
+    if (op == nullptr) {
+        SetError(operator_index, "null operator");
+        return false;
+    }
+    const auto* subgraph = document_.PrimarySubgraph();
+    if (subgraph == nullptr || subgraph->tensors() == nullptr) {
+        SetError(operator_index, "missing subgraph or tensors");
+        return false;
+    }
+    const auto* inputs = op->inputs();
+    const auto* outputs = op->outputs();
+    if (inputs == nullptr || outputs == nullptr) {
+        SetError(operator_index, "missing inputs or outputs");
+        return false;
+    }
+    if (inputs->size() != 4) {
+        SetError(operator_index, "requires input, begin, end and strides tensors");
+        return false;
+    }
+    if (outputs->size() != 1) {
+        SetError(operator_index, "requires one output tensor");
+        return false;
+    }
+    const int32_t input_index = inputs->Get(0);
+    const int32_t begin_index = inputs->Get(1);
+    const int32_t end_index = inputs->Get(2);
+    const int32_t strides_index = inputs->Get(3);
+    const int32_t output_index = outputs->Get(0);
+    if (input_index < 0 || begin_index < 0 || end_index < 0 || strides_index < 0 || output_index < 0) {
+        SetError(operator_index, "contains a negative tensor index");
+        return false;
+    }
+    const auto* tensors = subgraph->tensors();
+    if (static_cast<size_t>(input_index) >= tensors->size() || static_cast<size_t>(begin_index) >= tensors->size() || static_cast<size_t>(end_index) >= tensors->size() || static_cast<size_t>(strides_index) >= tensors->size() || static_cast<size_t>(output_index) >= tensors->size()) {
+        SetError(operator_index, "contains an out-of-range tensor index");
+        return false;
+    }
+    const auto* input = tensors->Get(static_cast<size_t>(input_index));
+    const auto* begin = tensors->Get(static_cast<size_t>(begin_index));
+    const auto* end = tensors->Get(static_cast<size_t>(end_index));
+    const auto* strides = tensors->Get(static_cast<size_t>(strides_index));
+    const auto* output = tensors->Get(static_cast<size_t>(output_index));
+    if (input == nullptr || begin == nullptr || end == nullptr || strides == nullptr || output == nullptr) {
+        SetError(operator_index, "contains null tensor");
+        return false;
+    }
+    if (begin->type() != tflite::TensorType_INT32 || end->type() != tflite::TensorType_INT32 || strides->type() != tflite::TensorType_INT32) {
+        SetError(operator_index, "begin, end and strides tensors must be INT32");
+        return false;
+    }
+    if (begin->shape() == nullptr || end->shape() == nullptr || strides->shape() == nullptr) {
+        SetError(operator_index, "missing slice parameter shape");
+        return false;
+    }
+    if (begin->shape()->size() != 1 || end->shape()->size() != 1 || strides->shape()->size() != 1) {
+        SetError(operator_index, "slice parameter tensors must be one-dimensional");
+        return false;
+    }
+    if (begin->shape()->Get(0) != end->shape()->Get(0) || begin->shape()->Get(0) != strides->shape()->Get(0)) {
+        SetError(operator_index, "slice parameter sizes do not match");
+        return false;
+    }
+    if (input->shape() == nullptr || input->shape()->size() == 0) {
+        SetError(operator_index, "input tensor has no shape");
+        return false;
+    }
+    if (output->shape() == nullptr) {
+        SetError(operator_index, "output tensor has no shape");
+        return false;
+    }
+    if (input->type() != output->type()) {
+        SetError(operator_index, "input and output types do not match");
+        return false;
+    }
+    return true;
+}
+
 bool ModelValidator::ValidateMean(size_t operator_index, const tflite::Operator* op) const
 {
     if (op == nullptr) {
@@ -1046,6 +1159,67 @@ bool ModelValidator::ValidateMean(size_t operator_index, const tflite::Operator*
     return true;
 }
 
+bool ModelValidator::ValidateShape(size_t operator_index, const tflite::Operator* op) const
+{
+    if (op == nullptr) {
+        SetError(operator_index, "null operator");
+        return false;
+    }
+    const auto* subgraph = document_.PrimarySubgraph();
+    if (subgraph == nullptr || subgraph->tensors() == nullptr) {
+        SetError(operator_index, "missing subgraph or tensors");
+        return false;
+    }
+    const auto* inputs = op->inputs();
+    const auto* outputs = op->outputs();
+    if (inputs == nullptr || outputs == nullptr) {
+        SetError(operator_index, "missing inputs or outputs");
+        return false;
+    }
+    if (inputs->size() != 1) {
+        SetError(operator_index, "requires one input tensor");
+        return false;
+    }
+    if (outputs->size() != 1) {
+        SetError(operator_index, "requires one output tensor");
+        return false;
+    }
+    const int32_t input_index = inputs->Get(0);
+    const int32_t output_index = outputs->Get(0);
+    if (input_index < 0 || output_index < 0) {
+        SetError(operator_index, "contains a negative tensor index");
+        return false;
+    }
+    const auto* tensors = subgraph->tensors();
+    if (static_cast<size_t>(input_index) >= tensors->size() || static_cast<size_t>(output_index) >= tensors->size()) {
+        SetError(operator_index, "contains an out-of-range tensor index");
+        return false;
+    }
+    const auto* input = tensors->Get(static_cast<size_t>(input_index));
+    const auto* output = tensors->Get(static_cast<size_t>(output_index));
+    if (input == nullptr || output == nullptr) {
+        SetError(operator_index, "contains null tensor");
+        return false;
+    }
+    if (input->shape() == nullptr) {
+        SetError(operator_index, "input tensor has no shape");
+        return false;
+    }
+    if (output->type() != tflite::TensorType_INT32 && output->type() != tflite::TensorType_INT64) {
+        SetError(operator_index, "output tensor must be INT32 or INT64");
+        return false;
+    }
+    if (output->shape() == nullptr || output->shape()->size() != 1) {
+        SetError(operator_index, "output tensor must be one-dimensional");
+        return false;
+    }
+    if (output->shape()->Get(0) != static_cast<int32_t>(input->shape()->size())) {
+        SetError(operator_index, "output size does not match input rank");
+        return false;
+    }
+    return true;
+}
+
 bool ModelValidator::ValidateReshape(size_t operator_index, const tflite::Operator* op) const
 {
     if (op == nullptr) {
@@ -1079,9 +1253,7 @@ bool ModelValidator::ValidateReshape(size_t operator_index, const tflite::Operat
         return false;
     }
     const auto* tensors = subgraph->tensors();
-    if (static_cast<size_t>(input_index) >= tensors->size() ||
-        static_cast<size_t>(shape_index) >= tensors->size() ||
-        static_cast<size_t>(output_index) >= tensors->size()) {
+    if (static_cast<size_t>(input_index) >= tensors->size() || static_cast<size_t>(shape_index) >= tensors->size() || static_cast<size_t>(output_index) >= tensors->size()) {
         SetError(operator_index, "contains an out-of-range tensor index");
         return false;
     }
@@ -1104,6 +1276,18 @@ bool ModelValidator::ValidateReshape(size_t operator_index, const tflite::Operat
         SetError(operator_index, "invalid shape tensor size");
         return false;
     }
+    if (input->shape() == nullptr || input->shape()->size() == 0) {
+        SetError(operator_index, "input tensor has no shape");
+        return false;
+    }
+    if (output->shape() == nullptr || output->shape()->size() == 0) {
+        SetError(operator_index, "output tensor has no shape");
+        return false;
+    }
+    if (input->type() != output->type()) {
+        SetError(operator_index, "input and output types do not match");
+        return false;
+    }
     if (shape->buffer() >= document_.BufferCount()) {
         SetError(operator_index, "shape tensor buffer index out of range");
         return false;
@@ -1114,12 +1298,92 @@ bool ModelValidator::ValidateReshape(size_t operator_index, const tflite::Operat
         return false;
     }
     const auto* shape_buffer = buffers->Get(shape->buffer());
-    if (shape_buffer == nullptr || shape_buffer->data() == nullptr) {
-        SetError(operator_index, "shape tensor has no constant data");
+    if (shape_buffer != nullptr && shape_buffer->data() != nullptr) {
+        if (shape_buffer->data()->size() < static_cast<size_t>(shape->shape()->Get(0)) * sizeof(int32_t)) {
+            SetError(operator_index, "shape tensor buffer is too small");
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ModelValidator::ValidatePack(size_t operator_index, const tflite::Operator* op) const
+{
+    if (op == nullptr) {
+        SetError(operator_index, "null operator");
         return false;
     }
-    if (shape_buffer->data()->size() <static_cast<size_t>(shape->shape()->Get(0)) * sizeof(int32_t)) {
-        SetError(operator_index, "shape tensor buffer is too small");
+    const auto* subgraph = document_.PrimarySubgraph();
+    if (subgraph == nullptr || subgraph->tensors() == nullptr) {
+        SetError(operator_index, "missing subgraph or tensors");
+        return false;
+    }
+    const auto* inputs = op->inputs();
+    const auto* outputs = op->outputs();
+    if (inputs == nullptr || outputs == nullptr) {
+        SetError(operator_index, "missing inputs or outputs");
+        return false;
+    }
+    if (inputs->size() < 1) {
+        SetError(operator_index, "requires at least one input tensor");
+        return false;
+    }
+    if (outputs->size() != 1) {
+        SetError(operator_index, "requires one output tensor");
+        return false;
+    }
+    const int32_t output_index = outputs->Get(0);
+    if (output_index < 0) {
+        SetError(operator_index, "contains a negative tensor index");
+        return false;
+    }
+    const auto* tensors = subgraph->tensors();
+    if (static_cast<size_t>(output_index) >= tensors->size()) {
+        SetError(operator_index, "contains an out-of-range tensor index");
+        return false;
+    }
+    const auto* output = tensors->Get(static_cast<size_t>(output_index));
+    if (output == nullptr) {
+        SetError(operator_index, "contains null output tensor");
+        return false;
+    }
+    const auto* first_input = tensors->Get(static_cast<size_t>(inputs->Get(0)));
+    if (inputs->Get(0) < 0 || static_cast<size_t>(inputs->Get(0)) >= tensors->size() || first_input == nullptr) {
+        SetError(operator_index, "contains an invalid input tensor");
+        return false;
+    }
+    if (first_input->shape() == nullptr || output->shape() == nullptr) {
+        SetError(operator_index, "missing tensor shape");
+        return false;
+    }
+    for (size_t i = 0; i < inputs->size(); ++i) {
+        const int32_t input_index = inputs->Get(i);
+        if (input_index < 0 || static_cast<size_t>(input_index) >= tensors->size()) {
+            SetError(operator_index, "contains an invalid input tensor index");
+            return false;
+        }
+        const auto* input = tensors->Get(static_cast<size_t>(input_index));
+        if (input == nullptr) {
+            SetError(operator_index, "contains null input tensor");
+            return false;
+        }
+        if (input->type() != first_input->type()) {
+            SetError(operator_index, "input tensor types do not match");
+            return false;
+        }
+        if (input->shape() == nullptr || input->shape()->size() != first_input->shape()->size()) {
+            SetError(operator_index, "input tensor ranks do not match");
+            return false;
+        }
+        for (size_t j = 0; j < first_input->shape()->size(); ++j) {
+            if (input->shape()->Get(j) != first_input->shape()->Get(j)) {
+                SetError(operator_index, "input tensor shapes do not match");
+                return false;
+            }
+        }
+    }
+    if (output->type() != first_input->type()) {
+        SetError(operator_index, "output tensor type does not match inputs");
         return false;
     }
     return true;
@@ -1296,6 +1560,36 @@ bool ModelValidator::ValidateDepthwiseConv2DOptions(size_t operator_index, const
     }
 }
 
+bool ModelValidator::ValidateStridedSliceOptions(size_t operator_index, const tflite::Operator* op) const
+{
+    if (op == nullptr) {
+        SetError(operator_index, "null operator");
+        return false;
+    }
+    if (op->builtin_options_type() != tflite::BuiltinOptions_StridedSliceOptions) {
+        SetError(operator_index, "invalid STRIDED_SLICE options type");
+        return false;
+    }
+    const auto* options = op->builtin_options_as_StridedSliceOptions();
+    if (options == nullptr) {
+        SetError(operator_index, "missing STRIDED_SLICE options");
+        return false;
+    }
+    if (options->ellipsis_mask() != 0 && (options->ellipsis_mask() & (options->ellipsis_mask() - 1)) != 0) {
+        SetError(operator_index, "ellipsis mask must contain at most one bit");
+        return false;
+    }
+    if (options->new_axis_mask() != 0 && (options->new_axis_mask() & options->ellipsis_mask()) != 0) {
+        SetError(operator_index, "new axis and ellipsis masks overlap");
+        return false;
+    }
+    if (options->shrink_axis_mask() != 0 && (options->shrink_axis_mask() & options->new_axis_mask()) != 0) {
+        SetError(operator_index, "shrink axis and new axis masks overlap");
+        return false;
+    }
+    return true;
+}
+
 bool ModelValidator::ValidateMeanOptions(size_t operator_index, const tflite::Operator* op) const
 {
     if (op == nullptr) {
@@ -1309,6 +1603,76 @@ bool ModelValidator::ValidateMeanOptions(size_t operator_index, const tflite::Op
     const auto* options = op->builtin_options_as_ReducerOptions();
     if (options == nullptr) {
         SetError(operator_index, "missing MEAN options");
+        return false;
+    }
+    return true;
+}
+
+bool ModelValidator::ValidateShapeOptions(size_t operator_index, const tflite::Operator* op) const
+{
+    if (op == nullptr) {
+        SetError(operator_index, "null operator");
+        return false;
+    }
+    if (op->builtin_options_type() != tflite::BuiltinOptions_ShapeOptions) {
+        SetError(operator_index, "invalid SHAPE options type");
+        return false;
+    }
+    const auto* options = op->builtin_options_as_ShapeOptions();
+    if (options == nullptr) {
+        SetError(operator_index, "missing SHAPE options");
+        return false;
+    }
+    return true;
+}
+
+bool ModelValidator::ValidatePackOptions(size_t operator_index, const tflite::Operator* op) const
+{
+    if (op == nullptr) {
+        SetError(operator_index, "null operator");
+        return false;
+    }
+    if (op->builtin_options_type() != tflite::BuiltinOptions_PackOptions) {
+        SetError(operator_index, "invalid PACK options type");
+        return false;
+    }
+    const auto* options = op->builtin_options_as_PackOptions();
+    if (options == nullptr) {
+        SetError(operator_index, "missing PACK options");
+        return false;
+    }
+    if (options->values_count() <= 0) {
+        SetError(operator_index, "PACK values count must be positive");
+        return false;
+    }
+    const auto* inputs = op->inputs();
+    if (inputs == nullptr || inputs->size() == 0) {
+        SetError(operator_index, "PACK has no inputs");
+        return false;
+    }
+    if (static_cast<size_t>(options->values_count()) != inputs->size()) {
+        SetError(operator_index, "PACK values count does not match input count");
+        return false;
+    }
+    const auto* subgraph = document_.PrimarySubgraph();
+    if (subgraph == nullptr || subgraph->tensors() == nullptr) {
+        SetError(operator_index, "missing subgraph or tensors");
+        return false;
+    }
+    const auto* tensors = subgraph->tensors();
+    const int32_t input_index = inputs->Get(0);
+    if (input_index < 0 || static_cast<size_t>(input_index) >= tensors->size()) {
+        SetError(operator_index, "PACK input tensor index is invalid");
+        return false;
+    }
+    const auto* input = tensors->Get(static_cast<size_t>(input_index));
+    if (input == nullptr || input->shape() == nullptr) {
+        SetError(operator_index, "PACK input has no shape");
+        return false;
+    }
+    const int32_t rank = static_cast<int32_t>(input->shape()->size());
+    if (options->axis() < -rank || options->axis() > rank) {
+        SetError(operator_index, "PACK axis is out of range");
         return false;
     }
     return true;

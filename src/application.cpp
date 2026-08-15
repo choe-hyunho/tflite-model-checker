@@ -36,9 +36,14 @@ bool Application::Verify()
 {
     using namespace tflite;
 
+    verify_error_.clear();
+    allocation_passed_ = false;
+    invoke_passed_ = false;
+
     TflmOpResolver resolver;
 
     if (CreateOpResolver(resolver) != kTfLiteOk) {
+        verify_error_ = "failed to create operator resolver";
         return false;
     }
 
@@ -46,6 +51,7 @@ bool Application::Verify()
     auto* tensor_arena = static_cast<uint8_t*>(malloc(kTensorArenaSize));
 
     if (!tensor_arena) {
+        verify_error_ = "failed to allocate tensor arena";
         return false;
     }
     memset(tensor_arena, 0, kTensorArenaSize);
@@ -54,11 +60,19 @@ bool Application::Verify()
     {
         MicroInterpreter interpreter(loader_.GetModel(), resolver, tensor_arena, kTensorArenaSize);
         if (interpreter.AllocateTensors() != kTfLiteOk) {
+            verify_error_ = "AllocateTensors() failed";
             result = false;
         } else {
+            allocation_passed_ = true;
             arena_used_ = interpreter.arena_used_bytes();
-            if (interpreter.Invoke() != kTfLiteOk) {
+            if (!InitializeInput(interpreter)) {
+                verify_error_ = "failed to initialize model input";
                 result = false;
+            } else if (interpreter.Invoke() != kTfLiteOk) {
+                verify_error_ = "Invoke() failed";
+                result = false;
+            } else {
+                invoke_passed_ = true;
             }
         }
     }
@@ -78,6 +92,37 @@ void Application::PrintTensorArena() const
     printer.KeyBytes("Used", arena_used_);
     printer.KeyBytes("Free", kTensorArenaSize - arena_used_);
     printer.KeyPercent("Utilization", static_cast<double>(arena_used_) * 100.0 / static_cast<double>(kTensorArenaSize));
+}
+
+bool Application::InitializeInput(tflite::MicroInterpreter& interpreter)
+{
+    auto* input = interpreter.input(0);
+
+    if (input == nullptr)
+        return false;
+    if (input->data.raw == nullptr)
+        return false;
+    if (input->type == kTfLiteFloat32) {
+        const size_t element_count = input->bytes / sizeof(float);
+        float* data = input->data.f;
+
+        for (size_t i = 0; i < element_count; ++i)
+            data[i] = 0.0f;
+        return true;
+    }
+    if (input->type == kTfLiteInt8) {
+        memset(input->data.int8, 0, input->bytes);
+        return true;
+    }
+    if (input->type == kTfLiteUInt8) {
+        memset(input->data.uint8, 0, input->bytes);
+        return true;
+    }
+    if (input->type == kTfLiteInt16) {
+        memset(input->data.i16, 0, input->bytes);
+        return true;
+    }
+    return false;
 }
 
 void Application::PrintReport() const
@@ -118,8 +163,12 @@ int Application::Run()
         printer.Error("Model validation failed");
         return 1;
     }
-    if (!Verify()) {
-        return 3;
-    }
-    return 0;
+    const bool verified = Verify();
+    ConsolePrinter console;
+    console.Section("Runtime Verification");
+    console.Key("AllocateTensors", allocation_passed_ ? "PASS" : "FAIL");
+    console.Key("Invoke", invoke_passed_ ? "PASS" : "FAIL");
+    if (!verify_error_.empty())
+        console.Key("Error", verify_error_.c_str());
+    return verified ? 0 : 1;
 }

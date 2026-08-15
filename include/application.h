@@ -5,6 +5,10 @@
 #include "model_loader.h"
 #include "model_document.h"
 
+namespace tflite {
+class MicroInterpreter;
+}
+
 class ModelSummaryPrinter;
 
 class Application {
@@ -18,6 +22,7 @@ private:
     bool Verify();
     void PrintReport() const;
     void PrintTensorArena() const;
+    bool InitializeInput(tflite::MicroInterpreter& interpreter);
 
 private:
     CommandLine command_line_;
@@ -25,6 +30,9 @@ private:
     ModelDocument document_;
     std::unique_ptr<ModelSummaryPrinter> summary_printer_;
     size_t arena_used_ = 0;
+    std::string verify_error_;
+    bool allocation_passed_ = false;
+    bool invoke_passed_ = false;
 };
 
 #endif
