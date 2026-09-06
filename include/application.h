@@ -22,7 +22,10 @@ private:
     bool Verify();
     void PrintReport() const;
     void PrintTensorArena() const;
+    void PrintRuntimeTensorArena() const;
     bool InitializeInput(tflite::MicroInterpreter& interpreter);
+    bool HasCustomOperator(std::string& custom_name) const;
+    bool GetCustomOperatorNames(std::string& custom_names) const;
 
 private:
     CommandLine command_line_;
@@ -33,6 +36,8 @@ private:
     std::string verify_error_;
     bool allocation_passed_ = false;
     bool invoke_passed_ = false;
+    bool runtime_verification_skipped_ = false;
+    std::string custom_operator_names_;
 };
 
 #endif

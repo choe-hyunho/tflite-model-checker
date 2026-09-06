@@ -1,7 +1,7 @@
 #include "model_document.h"
 
-ModelDocument::ModelDocument(const tflite::Model* model)
-    : model_(model)
+ModelDocument::ModelDocument(const tflite::Model* model, const uint8_t* data, size_t size)
+    : model_(model), data_(data), size_(size)
 {
 }
 
@@ -13,6 +13,16 @@ bool ModelDocument::IsValid() const
 const tflite::Model* ModelDocument::Model() const
 {
     return model_;
+}
+
+const uint8_t* ModelDocument::Data() const
+{
+    return data_;
+}
+
+size_t ModelDocument::Size() const
+{
+    return size_;
 }
 
 const tflite::SubGraph* ModelDocument::PrimarySubgraph() const

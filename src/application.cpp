@@ -23,41 +23,45 @@ Application::Application(const CommandLine& cmd) : command_line_(cmd) {}
 
 Application::~Application() = default;
 
+namespace {
+constexpr size_t kTensorArenaSize = 4 * 1024 * 1024;
+}
+
 bool Application::LoadModel()
 {
     if (!loader_.Load(command_line_.model_filename)) {
         return false;
     }
-    document_ = ModelDocument(loader_.GetModel());
+    document_ = ModelDocument(loader_.GetModel(), loader_.Data(), loader_.Size());
     return document_.IsValid();
 }
 
 bool Application::Verify()
 {
     using namespace tflite;
-
     verify_error_.clear();
     allocation_passed_ = false;
     invoke_passed_ = false;
-
     TflmOpResolver resolver;
-
     if (CreateOpResolver(resolver) != kTfLiteOk) {
         verify_error_ = "failed to create operator resolver";
         return false;
     }
-
-    constexpr size_t kTensorArenaSize = 1024 * 1024;
     auto* tensor_arena = static_cast<uint8_t*>(malloc(kTensorArenaSize));
-
     if (!tensor_arena) {
         verify_error_ = "failed to allocate tensor arena";
         return false;
     }
     memset(tensor_arena, 0, kTensorArenaSize);
-
     bool result = true;
     {
+        std::string custom_names;
+        if (GetCustomOperatorNames(custom_names)) {
+            runtime_verification_skipped_ = true;
+            verify_error_ = "custom operators require external runtime";
+            custom_operator_names_ = custom_names;
+            return true;
+        }
         MicroInterpreter interpreter(loader_.GetModel(), resolver, tensor_arena, kTensorArenaSize);
         if (interpreter.AllocateTensors() != kTfLiteOk) {
             verify_error_ = "AllocateTensors() failed";
@@ -83,11 +87,7 @@ bool Application::Verify()
 void Application::PrintTensorArena() const
 {
     ConsolePrinter printer;
-
     printer.Section("Tensor Arena");
-
-    constexpr size_t kTensorArenaSize = 1024 * 1024;
-
     printer.KeyBytes("Configured", kTensorArenaSize);
     printer.KeyBytes("Used", arena_used_);
     printer.KeyBytes("Free", kTensorArenaSize - arena_used_);
@@ -97,7 +97,6 @@ void Application::PrintTensorArena() const
 bool Application::InitializeInput(tflite::MicroInterpreter& interpreter)
 {
     auto* input = interpreter.input(0);
-
     if (input == nullptr)
         return false;
     if (input->data.raw == nullptr)
@@ -105,7 +104,6 @@ bool Application::InitializeInput(tflite::MicroInterpreter& interpreter)
     if (input->type == kTfLiteFloat32) {
         const size_t element_count = input->bytes / sizeof(float);
         float* data = input->data.f;
-
         for (size_t i = 0; i < element_count; ++i)
             data[i] = 0.0f;
         return true;
@@ -122,7 +120,24 @@ bool Application::InitializeInput(tflite::MicroInterpreter& interpreter)
         memset(input->data.i16, 0, input->bytes);
         return true;
     }
+    if (input->type == kTfLiteInt32) {
+        const size_t element_count = input->bytes / sizeof(int32_t);
+        for (size_t i = 0; i < element_count; ++i)
+            input->data.i32[i] = 0;
+        return true;
+    }
     return false;
+}
+
+void Application::PrintRuntimeTensorArena() const
+{
+    ConsolePrinter printer;
+    printer.Section("Runtime Tensor Arena");
+    printer.KeyBytes("Configured", kTensorArenaSize);
+    printer.KeyBytes("Used", arena_used_);
+    const size_t free_bytes = arena_used_ <= kTensorArenaSize ? kTensorArenaSize - arena_used_ : 0;
+    printer.KeyBytes("Free", free_bytes);
+    printer.KeyPercent("Utilization", static_cast<double>(arena_used_) * 100.0 / static_cast<double>(kTensorArenaSize));
 }
 
 void Application::PrintReport() const
@@ -155,20 +170,74 @@ int Application::Run()
         return 2;
     }
     PrintReport();
-
     ModelValidator validator(document_);
-
     if (!validator.Validate()) {
         ConsolePrinter printer;
-        printer.Error("Model validation failed");
+        printer.Error(validator.LastError().empty() ? "Model validation failed" : validator.LastError().c_str());
         return 1;
     }
     const bool verified = Verify();
+    PrintRuntimeTensorArena();
     ConsolePrinter console;
     console.Section("Runtime Verification");
-    console.Key("AllocateTensors", allocation_passed_ ? "PASS" : "FAIL");
-    console.Key("Invoke", invoke_passed_ ? "PASS" : "FAIL");
-    if (!verify_error_.empty())
-        console.Key("Error", verify_error_.c_str());
+    if (runtime_verification_skipped_) {
+    console.Key("Status", "SKIPPED");
+    console.Key("Reason", verify_error_.c_str());
+    if (!custom_operator_names_.empty())
+        console.Key("Custom Operators", custom_operator_names_.c_str());
+    } else {
+        console.Key("AllocateTensors", allocation_passed_ ? "PASS" : "FAIL");
+        console.Key("Invoke", invoke_passed_ ? "PASS" : "FAIL");
+        if (!verify_error_.empty())
+            console.Key("Error", verify_error_.c_str());
+    }
     return verified ? 0 : 1;
+}
+
+bool Application::HasCustomOperator(std::string& custom_name) const
+{
+    custom_name.clear();
+    const auto* subgraph = document_.PrimarySubgraph();
+    if (subgraph == nullptr || subgraph->operators() == nullptr)
+        return false;
+    const auto* operators = subgraph->operators();
+    for (size_t i = 0; i < operators->size(); ++i) {
+        const auto* op = operators->Get(i);
+        if (op == nullptr)
+            continue;
+        const auto* opcode = document_.OperatorCode(op->opcode_index());
+        if (opcode == nullptr)
+            continue;
+        if (opcode->builtin_code() != tflite::BuiltinOperator_CUSTOM)
+            continue;
+        const auto* name = opcode->custom_code();
+        if (name != nullptr)
+            custom_name = name->str();
+        return true;
+    }
+    return false;
+}
+
+bool Application::GetCustomOperatorNames(std::string& custom_names) const
+{
+    custom_names.clear();
+    const auto* subgraph = document_.PrimarySubgraph();
+    if (subgraph == nullptr || subgraph->operators() == nullptr)
+        return false;
+    const auto* operators = subgraph->operators();
+    for (size_t i = 0; i < operators->size(); ++i) {
+        const auto* op = operators->Get(i);
+        if (op == nullptr)
+            continue;
+        const auto* opcode = document_.OperatorCode(op->opcode_index());
+        if (opcode == nullptr || opcode->builtin_code() != tflite::BuiltinOperator_CUSTOM)
+            continue;
+        const auto* name = opcode->custom_code();
+        if (name == nullptr || name->str().empty())
+            continue;
+        if (!custom_names.empty())
+            custom_names += ", ";
+        custom_names += name->str();
+    }
+    return !custom_names.empty();
 }

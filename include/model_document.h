@@ -2,14 +2,17 @@
 #define MODEL_DOCUMENT_H
 
 #include <cstddef>
+#include <cstdint>
 
 #include "tensorflow/lite/schema/schema_generated.h"
 
 class ModelDocument {
 public:
-    explicit ModelDocument(const tflite::Model* model = nullptr);
+    explicit ModelDocument(const tflite::Model* model = nullptr, const uint8_t* data = nullptr, size_t size = 0);
     bool IsValid() const;
     const tflite::Model* Model() const;
+    const uint8_t* Data() const;
+    size_t Size() const;
     const tflite::SubGraph* PrimarySubgraph() const;
     const flatbuffers::Vector<flatbuffers::Offset<tflite::SubGraph>>* Subgraphs() const;
     const tflite::OperatorCode* OperatorCode(size_t index) const;
@@ -24,6 +27,8 @@ public:
 
 private:
     const tflite::Model* model_;
+    const uint8_t* data_;
+    size_t size_;
 };
 
 #endif
