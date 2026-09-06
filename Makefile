@@ -33,6 +33,7 @@ CC      := $(CROSS_COMPILE)gcc
 CXX     := $(CROSS_COMPILE)g++
 AR      := $(CROSS_COMPILE)ar
 STRIP   := $(CROSS_COMPILE)strip
+FLATC   := ../flatbuffers/build/flatc
 
 ###############################################################################
 # Directories
@@ -40,6 +41,8 @@ STRIP   := $(CROSS_COMPILE)strip
 
 SRCDIR := src
 INCDIR := include
+METADATA_DIR := metadata
+GENERATED_DIR := generated
 
 TFLM_ROOT := ../tflite-micro
 TFLM_LIB := $(TFLM_ROOT)/gen/$(TFLM_BUILD)/lib/libtensorflow-microlite.a
@@ -99,6 +102,7 @@ endif
 
 INCLUDES := \
     -I$(INCDIR) \
+    -I$(GENERATED_DIR) \
     -isystem $(TFLM_ROOT) \
     -isystem $(FLATBUFFERS_INC) \
     -isystem $(GEMMLOWP_INC)
@@ -116,6 +120,12 @@ SRCS := $(sort $(wildcard $(SRCDIR)/*.cpp))
 OBJS := $(SRCS:.cpp=.o)
 DEPS := $(OBJS:.o=.d)
 
+TFLITE_METADATA_FBS := $(METADATA_DIR)/metadata_schema.fbs
+CONVERSION_METADATA_FBS := $(METADATA_DIR)/conversion_metadata.fbs
+
+TFLITE_METADATA_H := $(GENERATED_DIR)/metadata_schema_generated.h
+CONVERSION_METADATA_H := $(GENERATED_DIR)/conversion_metadata_generated.h
+
 ###############################################################################
 # Rules
 ###############################################################################
@@ -125,8 +135,18 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
+$(TFLITE_METADATA_H): $(TFLITE_METADATA_FBS)
+	mkdir -p $(GENERATED_DIR)
+	$(FLATC) -c --gen-object-api -o $(GENERATED_DIR) $<
+
+$(CONVERSION_METADATA_H): $(CONVERSION_METADATA_FBS)
+	mkdir -p $(GENERATED_DIR)
+	$(FLATC) -c --gen-object-api -o $(GENERATED_DIR) $<
+
 %.o: %.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+src/metadata_decoder.o: $(TFLITE_METADATA_H) $(CONVERSION_METADATA_H)
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
@@ -135,6 +155,6 @@ strip: $(TARGET)
 	$(STRIP) $(TARGET)
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(TFLITE_METADATA_H) $(CONVERSION_METADATA_H) $(OBJS) $(TARGET)
 
 .PHONY: all clean strip

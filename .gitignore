@@ -9,6 +9,7 @@ model-checker
 *.lib
 build/
 bin/
+generated/
 obj/
 
 # Models and weights (Large files should not be in git)
