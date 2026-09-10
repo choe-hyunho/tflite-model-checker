@@ -2993,6 +2993,11 @@ bool ModelValidator::ValidateConv2D(size_t operator_index, const tflite::Operato
         SetError(operator_index, "input and output types do not match");
         return false;
     }
+    const int32_t input_channels = input->shape()->Get(3);
+    const int32_t output_channels = weights->shape()->Get(0);
+    const int32_t weight_input_channels = weights->shape()->Get(3);
+    const int32_t bias_channels = bias->shape()->Get(0);
+    const int32_t output_depth = output->shape()->Get(3);
     if (input->type() == tflite::TensorType_INT16) {
         if (weights->type() != tflite::TensorType_INT8) {
             SetError(operator_index, "INT16 input requires INT8 weights");
@@ -3012,12 +3017,50 @@ bool ModelValidator::ValidateConv2D(size_t operator_index, const tflite::Operato
             SetError(operator_index, "bias type is incompatible with input type");
             return false;
         }
+        if (bias->type() == tflite::TensorType_INT32) {
+            const auto* quantization = bias->quantization();
+            if (quantization != nullptr && quantization->zero_point() != nullptr) {
+                const auto* zero_points = quantization->zero_point();
+                for (size_t i = 0; i < zero_points->size(); ++i) {
+                    if (zero_points->Get(i) != 0) {
+                        SetError(operator_index, "INT32 bias zero point must be zero");
+                        return false;
+                    }
+                }
+            }
+            const auto* input_quantization = input->quantization();
+            const auto* weights_quantization = weights->quantization();
+            const auto* bias_quantization = bias->quantization();
+            if (input_quantization == nullptr || weights_quantization == nullptr || bias_quantization == nullptr || input_quantization->scale() == nullptr || weights_quantization->scale() == nullptr || bias_quantization->scale() == nullptr) {
+                SetError(operator_index, "missing quantization scale for INT32 bias");
+                return false;
+            }
+            const auto* input_scales = input_quantization->scale();
+            const auto* weight_scales = weights_quantization->scale();
+            const auto* bias_scales = bias_quantization->scale();
+            if (input_scales->size() != 1) {
+                SetError(operator_index, "input must have exactly one quantization scale");
+                return false;
+            }
+            if (weight_scales->size() != static_cast<size_t>(output_channels)) {
+                SetError(operator_index, "weight scale count does not match output channels");
+                return false;
+            }
+            if (bias_scales->size() != static_cast<size_t>(output_channels)) {
+                SetError(operator_index, "bias scale count does not match output channels");
+                return false;
+            }
+            for (size_t i = 0; i < bias_scales->size(); ++i) {
+                const float expected_scale = input_scales->Get(0) * weight_scales->Get(i);
+                const float actual_scale = bias_scales->Get(i);
+                const float tolerance = 1.0e-5f * std::max(std::fabs(expected_scale), std::fabs(actual_scale));
+                if (std::fabs(actual_scale - expected_scale) > tolerance) {
+                    SetError(operator_index, "bias scale does not match input and weight scales");
+                    return false;
+                }
+            }
+        }
     }
-    const int32_t input_channels = input->shape()->Get(3);
-    const int32_t output_channels = weights->shape()->Get(0);
-    const int32_t weight_input_channels = weights->shape()->Get(3);
-    const int32_t bias_channels = bias->shape()->Get(0);
-    const int32_t output_depth = output->shape()->Get(3);
     if (input_channels != weight_input_channels) {
         SetError(operator_index, "input channels do not match weights input channels");
         return false;
@@ -3561,6 +3604,10 @@ bool ModelValidator::ValidateDepthwiseConv2D(size_t operator_index, const tflite
         SetError(operator_index, "missing DEPTHWISE_CONV_2D options");
         return false;
     }
+    if (input->type() != tflite::TensorType_INT8 || weights->type() != tflite::TensorType_INT8 || bias->type() != tflite::TensorType_INT32 || output->type() != tflite::TensorType_INT8) {
+        SetError(operator_index, "DEPTHWISE_CONV_2D requires INT8 input, weights, output and INT32 bias");
+        return false;
+    }
     const size_t input_channels = static_cast<size_t>(input_shape->Get(3));
     const size_t depth_multiplier = static_cast<size_t>(options->depth_multiplier());
     const size_t output_channels = static_cast<size_t>(weights_shape->Get(3));
@@ -3579,6 +3626,80 @@ bool ModelValidator::ValidateDepthwiseConv2D(size_t operator_index, const tflite
     if (static_cast<size_t>(output_shape->Get(3)) != output_channels) {
         SetError(operator_index, "output channels do not match weights output channels");
         return false;
+    }
+    const auto* input_quantization = input->quantization();
+    const auto* weights_quantization = weights->quantization();
+    const auto* bias_quantization = bias->quantization();
+    const auto* output_quantization = output->quantization();
+    if (input_quantization == nullptr || input_quantization->scale() == nullptr || input_quantization->zero_point() == nullptr) {
+        SetError(operator_index, "missing quantization for INT8 input");
+        return false;
+    }
+    if (weights_quantization == nullptr || weights_quantization->scale() == nullptr || weights_quantization->zero_point() == nullptr) {
+        SetError(operator_index, "missing quantization for INT8 weights");
+        return false;
+    }
+    if (bias_quantization == nullptr || bias_quantization->scale() == nullptr || bias_quantization->zero_point() == nullptr) {
+        SetError(operator_index, "missing quantization for INT32 bias");
+        return false;
+    }
+    if (output_quantization == nullptr || output_quantization->scale() == nullptr || output_quantization->zero_point() == nullptr) {
+        SetError(operator_index, "missing quantization for INT8 output");
+        return false;
+    }
+    if (input_quantization->scale()->size() != 1 || input_quantization->zero_point()->size() != 1) {
+        SetError(operator_index, "INT8 depthwise input must have exactly one scale and zero point");
+        return false;
+    }
+    if (output_quantization->scale()->size() != 1 || output_quantization->zero_point()->size() != 1) {
+        SetError(operator_index, "INT8 depthwise output must have exactly one scale and zero point");
+        return false;
+    }
+    if (weights_quantization->quantized_dimension() != 3) {
+        SetError(operator_index, "INT8 depthwise weights quantized dimension must be 3");
+        return false;
+    }
+    const auto* weight_scales = weights_quantization->scale();
+    const auto* weight_zero_points = weights_quantization->zero_point();
+    if (weight_scales->size() != output_channels) {
+        SetError(operator_index, "weight scale count does not match output channels");
+        return false;
+    }
+    if (weight_zero_points->size() != output_channels) {
+        SetError(operator_index, "weight zero point count does not match output channels");
+        return false;
+    }
+    for (size_t i = 0; i < weight_zero_points->size(); ++i) {
+        if (weight_zero_points->Get(i) != 0) {
+            SetError(operator_index, "INT8 depthwise weight zero point must be zero");
+            return false;
+        }
+    }
+    const auto* bias_scales = bias_quantization->scale();
+    const auto* bias_zero_points = bias_quantization->zero_point();
+    if (bias_scales->size() != output_channels) {
+        SetError(operator_index, "bias scale count does not match output channels");
+        return false;
+    }
+    if (bias_zero_points->size() != output_channels) {
+        SetError(operator_index, "bias zero point count does not match output channels");
+        return false;
+    }
+    for (size_t i = 0; i < bias_zero_points->size(); ++i) {
+        if (bias_zero_points->Get(i) != 0) {
+            SetError(operator_index, "INT32 bias zero point must be zero");
+            return false;
+        }
+    }
+    const float input_scale = input_quantization->scale()->Get(0);
+    for (size_t i = 0; i < bias_scales->size(); ++i) {
+        const float expected_scale = input_scale * weight_scales->Get(i);
+        const float actual_scale = bias_scales->Get(i);
+        const float tolerance = 1.0e-5f * std::max(std::fabs(expected_scale), std::fabs(actual_scale));
+        if (std::fabs(actual_scale - expected_scale) > tolerance) {
+            SetError(operator_index, "bias scale does not match input and weight scales");
+            return false;
+        }
     }
     return true;
 }
@@ -4993,7 +5114,10 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
         return false;
     }
     const auto* tensors = subgraph->tensors();
-    if (static_cast<size_t>(input_index) >= tensors->size() || static_cast<size_t>(weights_index) >= tensors->size() || static_cast<size_t>(output_index) >= tensors->size() || (bias_index >= 0 && static_cast<size_t>(bias_index) >= tensors->size())) {
+    if (static_cast<size_t>(input_index) >= tensors->size() ||
+        static_cast<size_t>(weights_index) >= tensors->size() ||
+        static_cast<size_t>(output_index) >= tensors->size() ||
+        (bias_index >= 0 && static_cast<size_t>(bias_index) >= tensors->size())) {
         SetError(operator_index, "contains an out-of-range tensor index");
         return false;
     }
@@ -5001,7 +5125,8 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
     const auto* weights = tensors->Get(static_cast<size_t>(weights_index));
     const auto* bias = bias_index >= 0 ? tensors->Get(static_cast<size_t>(bias_index)) : nullptr;
     const auto* output = tensors->Get(static_cast<size_t>(output_index));
-    if (input == nullptr || weights == nullptr || output == nullptr || (bias_index >= 0 && bias == nullptr)) {
+    if (input == nullptr || weights == nullptr || output == nullptr ||
+        (bias_index >= 0 && bias == nullptr)) {
         SetError(operator_index, "references a null tensor");
         return false;
     }
@@ -5027,7 +5152,8 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
     const auto* weights_shape = weights->shape();
     const auto* bias_shape = bias_index >= 0 ? bias->shape() : nullptr;
     const auto* output_shape = output->shape();
-    if (input_shape == nullptr || weights_shape == nullptr || output_shape == nullptr || (bias_index >= 0 && bias_shape == nullptr)) {
+    if (input_shape == nullptr || weights_shape == nullptr || output_shape == nullptr ||
+        (bias_index >= 0 && bias_shape == nullptr)) {
         SetError(operator_index, "one or more tensors have no shape");
         return false;
     }
@@ -5055,9 +5181,12 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
     }
     const int32_t output_size = weights_shape->Get(0);
     const int32_t input_size = weights_shape->Get(1);
-    const int32_t actual_input_size = input_shape->Get(input_shape->size() - 1);
+    if (output_size == 0 || input_size == 0) {
+        SetError(operator_index, "FULLY_CONNECTED weights have zero dimension");
+        return false;
+    }
     const int32_t actual_output_size = output_shape->Get(output_shape->size() - 1);
-    if (output_size < 0 || input_size < 0 || actual_input_size < 0 || actual_output_size < 0) {
+    if (output_size < 0 || input_size < 0 || actual_output_size < 0) {
         SetError(operator_index, "contains a negative tensor dimension");
         return false;
     }
@@ -5073,23 +5202,15 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
         }
     }
     size_t input_elements = 1;
-    if (input->shape() == nullptr || input->shape()->size() == 0) {
-        SetError(operator_index, "input tensor has no shape");
-        return false;
-    }
-    for (size_t i = 0; i < input->shape()->size(); ++i) {
-        const int32_t dimension = input->shape()->Get(i);
+    for (size_t i = 0; i < input_shape->size(); ++i) {
+        const int32_t dimension = input_shape->Get(i);
         if (dimension < 0) {
             SetError(operator_index, "input tensor has invalid dimension");
             return false;
         }
         input_elements *= static_cast<size_t>(dimension);
     }
-    if (weights->shape() == nullptr || weights->shape()->size() != 2) {
-        SetError(operator_index, "weights tensor must be 2-dimensional");
-        return false;
-    }
-    const size_t weights_input_size = static_cast<size_t>(weights->shape()->Get(1));
+    const size_t weights_input_size = static_cast<size_t>(weights_shape->Get(1));
     if (input_elements != weights_input_size) {
         SetError(operator_index, "input size does not match weights input size");
         return false;
@@ -5097,6 +5218,127 @@ bool ModelValidator::ValidateFullyConnected(size_t operator_index, const tflite:
     if (actual_output_size != output_size) {
         SetError(operator_index, "output size does not match weights output size");
         return false;
+    }
+    if (input_type == tflite::TensorType_INT8) {
+        if (weights_type != tflite::TensorType_INT8 || output_type != tflite::TensorType_INT8) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED requires INT8 weights and output");
+            return false;
+        }
+        if (bias_index < 0) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED requires bias");
+            return false;
+        }
+        if (bias->type() != tflite::TensorType_INT32) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED requires INT32 bias");
+            return false;
+        }
+
+        const auto* input_quantization = input->quantization();
+        const auto* weights_quantization = weights->quantization();
+        const auto* bias_quantization = bias->quantization();
+        const auto* output_quantization = output->quantization();
+        if (input_quantization == nullptr || weights_quantization == nullptr ||
+            bias_quantization == nullptr || output_quantization == nullptr) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED requires quantization");
+            return false;
+        }
+
+        const auto* input_scales = input_quantization->scale();
+        const auto* input_zero_points = input_quantization->zero_point();
+        const auto* weights_scales = weights_quantization->scale();
+        const auto* weights_zero_points = weights_quantization->zero_point();
+        const auto* bias_scales = bias_quantization->scale();
+        const auto* bias_zero_points = bias_quantization->zero_point();
+        const auto* output_scales = output_quantization->scale();
+        const auto* output_zero_points = output_quantization->zero_point();
+        if (input_scales == nullptr || input_zero_points == nullptr ||
+            weights_scales == nullptr || weights_zero_points == nullptr ||
+            bias_scales == nullptr || bias_zero_points == nullptr ||
+            output_scales == nullptr || output_zero_points == nullptr) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED requires quantization parameters");
+            return false;
+        }
+
+        if (input_scales->size() != 1 || input_zero_points->size() != 1 ||
+            output_scales->size() != 1 || output_zero_points->size() != 1) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED input and output must use per-tensor quantization");
+            return false;
+        }
+        if (input_zero_points->Get(0) < -128 || input_zero_points->Get(0) > 127 ||
+            output_zero_points->Get(0) < -128 || output_zero_points->Get(0) > 127) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED input or output zero point is out of range");
+            return false;
+        }
+        if (!std::isfinite(input_scales->Get(0)) || input_scales->Get(0) <= 0.0f ||
+            !std::isfinite(output_scales->Get(0)) || output_scales->Get(0) <= 0.0f) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED input or output scale is invalid");
+            return false;
+        }
+
+        if (weights_scales->size() == 0 ||
+            weights_scales->size() != weights_zero_points->size()) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED weight quantization parameters have invalid sizes");
+            return false;
+        }
+        if (weights_scales->size() > 1 &&
+            weights_quantization->quantized_dimension() != 0) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED per-axis weights must use quantized dimension 0");
+            return false;
+        }
+        if (weights_scales->size() > 1 &&
+            weights_scales->size() != static_cast<size_t>(output_size)) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED weight scale count does not match output size");
+            return false;
+        }
+        for (size_t i = 0; i < weights_scales->size(); ++i) {
+            const float scale = weights_scales->Get(i);
+            if (!std::isfinite(scale) || scale <= 0.0f) {
+                SetError(operator_index, "INT8 FULLY_CONNECTED weight scale is invalid");
+                return false;
+            }
+            if (weights_zero_points->Get(i) != 0) {
+                SetError(operator_index, "INT8 FULLY_CONNECTED weight zero point must be 0");
+                return false;
+            }
+        }
+
+        if (input_scales->size() != 1 ||
+            bias_scales->size() != weights_scales->size() ||
+            bias_zero_points->size() != bias_scales->size()) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED bias quantization parameters have invalid sizes");
+            return false;
+        }
+        if (bias_scales->size() != 1 &&
+            bias_scales->size() != static_cast<size_t>(output_size)) {
+            SetError(operator_index, "INT8 FULLY_CONNECTED bias scale count is invalid");
+            return false;
+        }
+        for (size_t i = 0; i < bias_scales->size(); ++i) {
+            const float weight_scale =
+                weights_scales->size() == 1 ? weights_scales->Get(0) : weights_scales->Get(i);
+            const float expected_scale = input_scales->Get(0) * weight_scale;
+            const float actual_scale = bias_scales->Get(i);
+            if (!std::isfinite(actual_scale) || actual_scale <= 0.0f) {
+                SetError(operator_index, "INT8 FULLY_CONNECTED bias scale is invalid");
+                return false;
+            }
+            if (bias_zero_points->Get(i) != 0) {
+                SetError(operator_index, "INT8 FULLY_CONNECTED bias zero point must be 0");
+                return false;
+            }
+            const float tolerance =
+                1e-5f * std::max(std::fabs(expected_scale), std::fabs(actual_scale));
+            if (std::fabs(expected_scale - actual_scale) > tolerance) {
+                SetError(operator_index, "INT8 FULLY_CONNECTED bias scale does not match input and weight scales");
+                return false;
+            }
+        }
+    }
+    if (input_type != tflite::TensorType_INT8 && bias_index >= 0) {
+        if (bias->type() != input_type && bias->type() != tflite::TensorType_INT32) {
+            SetError(operator_index, "FULLY_CONNECTED bias type is incompatible with input type");
+            return false;
+        }
     }
     return true;
 }
