@@ -8,7 +8,7 @@
 
 namespace tflite {
 
-using TflmOpResolver = MicroMutableOpResolver<117>;
+using TflmOpResolver = MicroMutableOpResolver<118>;
 
 inline TfLiteStatus CreateOpResolver(TflmOpResolver& op_resolver) {
     TF_LITE_ENSURE_STATUS(op_resolver.AddAbs());

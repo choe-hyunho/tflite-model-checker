@@ -6,7 +6,7 @@
 
 class OperatorPrinter {
 public:
-    OperatorPrinter(ConsolePrinter& printer, const ModelDocument& document);
+    OperatorPrinter(ConsolePrinter& printer, const ModelDocument& document, bool verbose);
     void Print() const;
 
 private:
@@ -15,6 +15,7 @@ private:
 private:
     ConsolePrinter& printer_;
     const ModelDocument& document_;
+    bool verbose_;
 };
 
 #endif

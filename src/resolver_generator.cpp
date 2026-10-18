@@ -5,6 +5,7 @@
 
 #include "console_printer.h"
 #include "model_document.h"
+#include "resolver_builder.h"
 #include "resolver_table.h"
 
 ResolverGenerator::ResolverGenerator(ConsolePrinter& printer, const ModelDocument& document)
@@ -17,31 +18,12 @@ void ResolverGenerator::Print() const
         printer_.Line("(invalid model)");
         return;
     }
-
-    std::set<tflite::BuiltinOperator> ops;
-    const auto* opcodes = document_.OperatorCodes();
-
-    if (opcodes == nullptr) {
-        printer_.Line("(no operator codes)");
+    const auto ops = CollectModelOperators(document_);
+    if (ops.empty()) {
+        printer_.Line("(no operators)");
         return;
     }
-    for (size_t i = 0; i < opcodes->size(); ++i) {
-        const auto* opcode = opcodes->Get(i);
-
-        if (opcode == nullptr) {
-            continue;
-        }
-
-        const auto op = opcode->builtin_code();
-
-        if (op == tflite::BuiltinOperator_CUSTOM) {
-            continue;
-        }
-        ops.insert(op);
-    }
-
     char line[128];
-
     snprintf(line, sizeof(line), "using OpResolver = tflite::MicroMutableOpResolver<%zu>;", ops.size());
     printer_.Line(line);
     printer_.Blank();
@@ -49,7 +31,6 @@ void ResolverGenerator::Print() const
     printer_.Blank();
     for (const auto op : ops) {
         const char* method = ResolverMethodName(op);
-
         if (method == nullptr) {
             printer_.Line("// Unsupported operator");
             continue;

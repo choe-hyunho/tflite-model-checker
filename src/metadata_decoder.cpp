@@ -1457,7 +1457,6 @@ static void PrintTensorMetadata(ConsolePrinter& printer, const char* title, cons
             printer.Key("Tensor Type", "UNKNOWN");
             printer.Key("Tensor Type Status", "Invalid enum value");
         }
-        printer.Key("Tensor Type", type != nullptr ? type : "UNKNOWN");
         printer.Key("Tensor Shape", TensorShapeToString(model_tensor));
         PrintTensorDetails(printer, model_tensor);
         PrintTensorSparsity(printer, model_tensor);

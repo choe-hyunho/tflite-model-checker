@@ -1,6 +1,8 @@
 #ifndef RESOLVER_GENERATOR_H
 #define RESOLVER_GENERATOR_H
 
+#include <set>
+
 #include "tensorflow/lite/schema/schema_generated.h"
 
 class ConsolePrinter;
@@ -15,5 +17,4 @@ private:
     ConsolePrinter& printer_;
     const ModelDocument& document_;
 };
-
 #endif

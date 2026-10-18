@@ -1513,8 +1513,10 @@ bool ModelValidator::ValidateOperators() const
                 }
                 break;
             default:
-                SetError(op_index, "unsupported operator");
-                valid = false;
+                if (op->opcode_index() >= model->operator_codes()->size()) {
+                    SetError(op_index, "unsupported operator");
+                    valid = false;
+                }
                 break;
             }
         }
@@ -11350,6 +11352,5 @@ bool ModelValidator::ValidateCustom(size_t operator_index, const tflite::Operato
         return ValidateStacker(operator_index, op);
     if (custom_name->str() == "SignalWindow")
         return ValidateWindow(operator_index, op);
-    SetError(operator_index, ("unsupported custom operator: " + custom_name->str()).c_str());
-    return false;
+    return true;
 }

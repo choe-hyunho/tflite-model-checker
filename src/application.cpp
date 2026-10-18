@@ -12,12 +12,15 @@
 #include "tensor_graph.h"
 #include "tensor_printer.h"
 #include "validation_printer.h"
+#include "resolver_builder.h"
 #include "resolver_generator.h"
+#include "resolver_table.h"
 #include "model_validator.h"
 #include "model_summary_printer.h"
 
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/compiler/mlir/lite/schema/schema_utils.h"
 
 Application::Application(const CommandLine& cmd) : command_line_(cmd) {}
 
@@ -42,9 +45,21 @@ bool Application::Verify()
     verify_error_.clear();
     allocation_passed_ = false;
     invoke_passed_ = false;
+    std::string custom_names;
+    if (GetCustomOperatorNames(custom_names)) {
+        runtime_verification_skipped_ = true;
+        verify_error_ = "custom operators require external runtime";
+        custom_operator_names_ = custom_names;
+        return true;
+    }
+    runtime_verification_skipped_ = false;
+    custom_operator_names_.clear();
     TflmOpResolver resolver;
-    if (CreateOpResolver(resolver) != kTfLiteOk) {
-        verify_error_ = "failed to create operator resolver";
+    const auto operators = CollectModelOperators(document_);
+    BuiltinOperator unsupported_operator = BuiltinOperator_ADD;
+    if (RegisterModelOperators(resolver, operators, &unsupported_operator) != kTfLiteOk) {
+        verify_error_ = "unsupported built-in operator: ";
+        verify_error_ += tflite::EnumNameBuiltinOperator(unsupported_operator);
         return false;
     }
     auto* tensor_arena = static_cast<uint8_t*>(malloc(kTensorArenaSize));
@@ -55,13 +70,6 @@ bool Application::Verify()
     memset(tensor_arena, 0, kTensorArenaSize);
     bool result = true;
     {
-        std::string custom_names;
-        if (GetCustomOperatorNames(custom_names)) {
-            runtime_verification_skipped_ = true;
-            verify_error_ = "custom operators require external runtime";
-            custom_operator_names_ = custom_names;
-            return true;
-        }
         MicroInterpreter interpreter(loader_.GetModel(), resolver, tensor_arena, kTensorArenaSize);
         if (interpreter.AllocateTensors() != kTfLiteOk) {
             verify_error_ = "AllocateTensors() failed";
@@ -131,6 +139,8 @@ bool Application::InitializeInput(tflite::MicroInterpreter& interpreter)
 
 void Application::PrintRuntimeTensorArena() const
 {
+    if (runtime_verification_skipped_)
+        return;
     ConsolePrinter printer;
     printer.Section("Runtime Tensor Arena");
     printer.KeyBytes("Configured", kTensorArenaSize);
@@ -146,7 +156,7 @@ void Application::PrintReport() const
     ModelPrinter model(console, document_);
     ValidationPrinter validation(console, document_);
     MetadataPrinter metadata(console, document_);
-    OperatorPrinter operators(console, document_);
+    OperatorPrinter operators(console, document_, command_line_.verbose);
     OperatorDetailPrinter details(console, document_);
     ResolverGenerator resolver(console, document_);
     TensorGraph tensor_graph(document_);
@@ -156,9 +166,11 @@ void Application::PrintReport() const
     validation.Print();
     metadata.Print();
     operators.Print();
-    details.Print();
+    if (command_line_.verbose) {
+        details.Print();
+        tensors.Print();
+    }
     resolver.Print();
-    tensors.Print();
     PrintTensorArena();
     ModelSummaryPrinter summary(console, document_, tensor_graph);
     summary.Print();
@@ -177,7 +189,8 @@ int Application::Run()
         return 1;
     }
     const bool verified = Verify();
-    PrintRuntimeTensorArena();
+    if (!runtime_verification_skipped_)
+        PrintRuntimeTensorArena();
     ConsolePrinter console;
     console.Section("Runtime Verification");
     if (runtime_verification_skipped_) {
@@ -187,7 +200,7 @@ int Application::Run()
         console.Key("Custom Operators", custom_operator_names_.c_str());
     } else {
         console.Key("AllocateTensors", allocation_passed_ ? "PASS" : "FAIL");
-        console.Key("Invoke", invoke_passed_ ? "PASS" : "FAIL");
+        console.Key("Invoke", !allocation_passed_ ? "NOT RUN" : (invoke_passed_ ? "PASS" : "FAIL"));
         if (!verify_error_.empty())
             console.Key("Error", verify_error_.c_str());
     }
@@ -208,7 +221,7 @@ bool Application::HasCustomOperator(std::string& custom_name) const
         const auto* opcode = document_.OperatorCode(op->opcode_index());
         if (opcode == nullptr)
             continue;
-        if (opcode->builtin_code() != tflite::BuiltinOperator_CUSTOM)
+        if (tflite::GetBuiltinCode(opcode) != tflite::BuiltinOperator_CUSTOM)
             continue;
         const auto* name = opcode->custom_code();
         if (name != nullptr)
@@ -230,7 +243,7 @@ bool Application::GetCustomOperatorNames(std::string& custom_names) const
         if (op == nullptr)
             continue;
         const auto* opcode = document_.OperatorCode(op->opcode_index());
-        if (opcode == nullptr || opcode->builtin_code() != tflite::BuiltinOperator_CUSTOM)
+        if (opcode == nullptr || tflite::GetBuiltinCode(opcode) != tflite::BuiltinOperator_CUSTOM)
             continue;
         const auto* name = opcode->custom_code();
         if (name == nullptr || name->str().empty())
