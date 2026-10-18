@@ -189,7 +189,7 @@ int Application::Run()
         return 1;
     }
     const bool verified = Verify();
-    if (!runtime_verification_skipped_)
+    if (allocation_passed_)
         PrintRuntimeTensorArena();
     ConsolePrinter console;
     console.Section("Runtime Verification");
