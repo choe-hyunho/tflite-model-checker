@@ -1444,7 +1444,7 @@ static void PrintTensorMetadata(ConsolePrinter& printer, const char* title, cons
         printer.Key("Tensor Status", "No matching model tensor");
     } else {
         if (tensor->name() == nullptr || tensor->name()->size() == 0)
-            printer.Key("Tensor Status", "Missing metadata tensor name");
+            printer.Key("Tensor Status", "Metadata tensor name not provided");
         else if (!TensorNamesMatch(tensor, model_tensor))
             printer.Key("Tensor Status", "Metadata/model tensor name mismatch");
         printer.Key("Tensor Index", static_cast<size_t>(tensor_index));
