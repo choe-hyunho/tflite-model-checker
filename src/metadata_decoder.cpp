@@ -859,6 +859,17 @@ static void PrintTensorGroups(ConsolePrinter& printer, const char* title, const 
                 printer.Key("Tensor Status", "Empty tensor name");
                 continue;
             }
+            bool duplicate = false;
+            for (size_t k = 0; k < j; ++k) {
+                const auto* previous_name = tensor_names->Get(k);
+                if (previous_name != nullptr && previous_name->size() > 0 &&
+                    previous_name->str() == name->str()) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate)
+                printer.Key("Tensor Status", "Duplicate tensor name");
             printer.Key("Tensor Name", name->c_str());
             if (!FindModelTensorByName(model_subgraph, name->c_str()))
                 printer.Key("Tensor Status", "Not found in model");
