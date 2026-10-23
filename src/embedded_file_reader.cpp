@@ -132,6 +132,8 @@ EmbeddedFileReader::Status EmbeddedFileReader::Read(const std::string& name, std
         const uint16_t local_extra_length = ReadU16(local + 28);
         if (local_flags != flags || local_method != method)
             return Status::INVALID_FILE;
+        if (ReadU32(local + 14) != crc || ReadU32(local + 18) != compressed_size || ReadU32(local + 22) != uncompressed_size)
+            return Status::INVALID_FILE;
         if (local_name_length != name_length)
             return Status::INVALID_FILE;
         const size_t local_header_variable_length = static_cast<size_t>(local_name_length) + static_cast<size_t>(local_extra_length);
@@ -152,6 +154,8 @@ EmbeddedFileReader::Status EmbeddedFileReader::Read(const std::string& name, std
         output->assign(file_data, file_data + file_size);
         return Status::OK;
     }
+    if (entry_offset != central_directory_end)
+        return Status::INVALID_ARCHIVE;
     return Status::FILE_NOT_FOUND;
 }
 
