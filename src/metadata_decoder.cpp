@@ -465,14 +465,17 @@ static void PrintLabels(ConsolePrinter& printer, const std::vector<uint8_t>& dat
     while (line < end) {
         const char* next = static_cast<const char*>(memchr(line, '\n', static_cast<size_t>(end - line)));
         const char* line_end = next != nullptr ? next : end;
-        while (line_end > line &&
-               (line_end[-1] == '\r' || line_end[-1] == '\n'))
+        while (line_end > line && (line_end[-1] == '\r' || line_end[-1] == '\n'))
             --line_end;
         if (line_end > line) {
-            std::string label(line, line_end);
-            char key[32];
-            snprintf(key, sizeof(key), "Label %zu", index++);
-            printer.Key(key, label);
+            if (memchr(line, '\0', static_cast<size_t>(line_end - line)) != nullptr) {
+                printer.Key("Status", "Label contains embedded NUL byte");
+            } else {
+                std::string label(line, line_end);
+                char key[32];
+                snprintf(key, sizeof(key), "Label %zu", index++);
+                printer.Key(key, label);
+            }
         }
         if (next == nullptr)
             break;
