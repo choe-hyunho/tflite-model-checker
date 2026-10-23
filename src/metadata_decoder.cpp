@@ -493,6 +493,10 @@ static void PrintTextFile(ConsolePrinter& printer, const std::vector<uint8_t>& d
     std::string text(reinterpret_cast<const char*>(data.data()), data.size());
     while (!text.empty() && (text.back() == '\0' || text.back() == '\r' || text.back() == '\n'))
         text.pop_back();
+    if (text.find('\0') != std::string::npos) {
+        printer.Key("Status", "Text contains embedded NUL byte");
+        return;
+    }
     if (!text.empty())
         printer.Key("Text", text);
     else
