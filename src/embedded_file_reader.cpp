@@ -121,7 +121,7 @@ EmbeddedFileReader::Status EmbeddedFileReader::Read(const std::string& name, std
         if (compressed_size != uncompressed_size)
             return Status::INVALID_FILE;
         const size_t local_header_offset = static_cast<size_t>(local_offset);
-        if (!RangeValid(local_header_offset, kLocalFileHeaderSize, size_))
+        if (local_header_offset >= central_directory_start || !RangeValid(local_header_offset, kLocalFileHeaderSize, central_directory_start))
             return Status::INVALID_FILE;
         const uint8_t* local = data_ + local_header_offset;
         if (ReadU32(local) != kLocalFileHeaderSignature)
@@ -135,7 +135,7 @@ EmbeddedFileReader::Status EmbeddedFileReader::Read(const std::string& name, std
         if (local_name_length != name_length)
             return Status::INVALID_FILE;
         const size_t local_header_variable_length = static_cast<size_t>(local_name_length) + static_cast<size_t>(local_extra_length);
-        if (!RangeValid(local_header_offset, kLocalFileHeaderSize + local_header_variable_length, size_))
+        if (!RangeValid(local_header_offset, kLocalFileHeaderSize + local_header_variable_length, central_directory_start))
             return Status::INVALID_FILE;
         const char* local_name = reinterpret_cast<const char*>(local + kLocalFileHeaderSize);
         if (memcmp(local_name, name.data(), name_length) != 0)
