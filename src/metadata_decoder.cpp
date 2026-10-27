@@ -531,14 +531,12 @@ static void PrintScoreCalibration(ConsolePrinter& printer, const std::vector<uin
     printer.SubSection("Contents");
     const char* begin = reinterpret_cast<const char*>(data.data());
     const char* end = begin + data.size();
-    size_t line_number = 0;
+    size_t line_number = 1;
     while (begin < end) {
         const char* line_end = begin;
         while (line_end < end && *line_end != '\n' && *line_end != '\r')
             ++line_end;
-        if (line_end == begin) {
-            ++line_number;
-        } else {
+        if (line_end != begin) {
             std::string line(begin, line_end);
             if (line.find('\0') != std::string::npos) {
                 char status[128];

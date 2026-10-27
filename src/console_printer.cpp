@@ -15,7 +15,6 @@ ConsolePrinter::ConsolePrinter(FILE* fp)
 void ConsolePrinter::Print(const char* fmt, ...) const
 {
     va_list ap;
-
     va_start(ap, fmt);
     vfprintf(fp_, fmt, ap);
     va_end(ap);
@@ -50,10 +49,8 @@ void ConsolePrinter::SubSection(const char* title) const
 {
     Blank();
     Print("%s\n", title);
-
     for (const char* p = title; *p; ++p)
         fputc('-', fp_);
-
     fputc('\n', fp_);
 }
 
@@ -71,7 +68,6 @@ void ConsolePrinter::Separator(char ch) const
 {
     for (int i = 0; i < kWidth; i++)
         fputc(ch, fp_);
-
     fputc('\n', fp_);
 }
 
@@ -84,10 +80,6 @@ void ConsolePrinter::Key(const char* name, const char* value) const
     Print("%-*s : %s\n", kKeyWidth, name, value ? value : "");
 }
 
-//void ConsolePrinter::Key(
-//    const std::string& name,
-//    const std::string& value) const = delete;
-
 void ConsolePrinter::Key(const char* name, const std::string& value) const
 {
     Key(name, value.c_str());
@@ -98,18 +90,14 @@ void ConsolePrinter::Key(const char* name, size_t value) const
     Print("%-*s : %zu\n", kKeyWidth, name, value);
 }
 
-void ConsolePrinter::KeyBytes(
-    const char* name,
-    size_t bytes) const
+void ConsolePrinter::KeyBytes(const char* name, size_t bytes) const
 {
     if (bytes < 1024) {
         Print("%-*s : %zu bytes\n", kKeyWidth, name, bytes);
         return;
     }
-
     double value = static_cast<double>(bytes);
     const char* unit;
-
     if (bytes >= 1024ULL * 1024ULL * 1024ULL) {
         value /= 1024.0 * 1024.0 * 1024.0;
         unit = "GB";
@@ -122,7 +110,6 @@ void ConsolePrinter::KeyBytes(
         value /= 1024.0;
         unit = "KB";
     }
-
     Print("%-*s : %.1f %s (%zu bytes)\n", kKeyWidth, name, value, unit, bytes);
 }
 
@@ -152,7 +139,6 @@ void ConsolePrinter::Status(const char* name, const char* status) const
 void ConsolePrinter::Info(const char* fmt, ...) const
 {
     va_list ap;
-
     va_start(ap, fmt);
     PrintMessage("Info", fmt, ap);
     va_end(ap);
@@ -161,7 +147,6 @@ void ConsolePrinter::Info(const char* fmt, ...) const
 void ConsolePrinter::Warning(const char* fmt, ...) const
 {
     va_list ap;
-
     va_start(ap, fmt);
     PrintMessage("Warning", fmt, ap);
     va_end(ap);
@@ -170,7 +155,6 @@ void ConsolePrinter::Warning(const char* fmt, ...) const
 void ConsolePrinter::Error(const char* fmt, ...) const
 {
     va_list ap;
-
     va_start(ap, fmt);
     PrintMessage("Error", fmt, ap);
     va_end(ap);
