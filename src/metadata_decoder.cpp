@@ -539,40 +539,47 @@ static void PrintScoreCalibration(ConsolePrinter& printer, const std::vector<uin
             ++line_number;
         } else {
             std::string line(begin, line_end);
-            std::vector<const char*> fields;
-            fields.push_back(line.c_str());
-            for (char* p = line.data(); *p != '\0'; ++p) {
-                if (*p == ',') {
-                    *p = '\0';
-                    fields.push_back(p + 1);
-                }
-            }
-            if (fields.size() != 3 && fields.size() != 4) {
+            if (line.find('\0') != std::string::npos) {
                 char status[128];
-                snprintf(status, sizeof(status), "Line %zu: Expected 3 or 4 fields, found %zu",
-                         line_number, fields.size());
+                snprintf(status, sizeof(status), "Line %zu: Embedded NUL byte",
+                         line_number);
                 printer.Key("Status", status);
             } else {
-                bool invalid = false;
-                for (size_t i = 0; i < fields.size(); ++i) {
-                    char* parse_end = nullptr;
-                    errno = 0;
-                    const float value = strtof(fields[i], &parse_end);
-                    if (parse_end == fields[i] || *parse_end != '\0' || errno == ERANGE ||
-                        !std::isfinite(value)) {
-                        invalid = true;
-                        break;
-                    }
-                    if (i == 0 && value < 0.0f) {
-                        invalid = true;
-                        break;
+                std::vector<const char*> fields;
+                fields.push_back(line.c_str());
+                for (char* p = line.data(); *p != '\0'; ++p) {
+                    if (*p == ',') {
+                        *p = '\0';
+                        fields.push_back(p + 1);
                     }
                 }
-                if (invalid) {
+                if (fields.size() != 3 && fields.size() != 4) {
                     char status[128];
-                    snprintf(status, sizeof(status), "Line %zu: Invalid score calibration values",
-                             line_number);
+                    snprintf(status, sizeof(status), "Line %zu: Expected 3 or 4 fields, found %zu",
+                             line_number, fields.size());
                     printer.Key("Status", status);
+                } else {
+                    bool invalid = false;
+                    for (size_t i = 0; i < fields.size(); ++i) {
+                        char* parse_end = nullptr;
+                        errno = 0;
+                        const float value = strtof(fields[i], &parse_end);
+                        if (parse_end == fields[i] || *parse_end != '\0' || errno == ERANGE ||
+                            !std::isfinite(value)) {
+                            invalid = true;
+                            break;
+                        }
+                        if (i == 0 && value < 0.0f) {
+                            invalid = true;
+                            break;
+                        }
+                    }
+                    if (invalid) {
+                        char status[128];
+                        snprintf(status, sizeof(status), "Line %zu: Invalid score calibration values",
+                                 line_number);
+                        printer.Key("Status", status);
+                    }
                 }
             }
         }
