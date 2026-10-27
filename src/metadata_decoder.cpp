@@ -470,6 +470,7 @@ static void PrintLabels(ConsolePrinter& printer, const std::vector<uint8_t>& dat
         if (line_end > line) {
             if (memchr(line, '\0', static_cast<size_t>(line_end - line)) != nullptr) {
                 printer.Key("Status", "Label contains embedded NUL byte");
+                ++index;
             } else {
                 std::string label(line, line_end);
                 char key[32];
