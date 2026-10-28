@@ -563,8 +563,7 @@ static void PrintScoreCalibration(ConsolePrinter& printer, const std::vector<uin
                         char* parse_end = nullptr;
                         errno = 0;
                         const float value = strtof(fields[i], &parse_end);
-                        if (parse_end == fields[i] || *parse_end != '\0' || errno == ERANGE ||
-                            !std::isfinite(value)) {
+                        if (parse_end == fields[i] || *parse_end != '\0' || errno == ERANGE || !std::isfinite(value)) {
                             invalid = true;
                             break;
                         }
@@ -620,7 +619,7 @@ static void PrintAssociatedFiles(ConsolePrinter& printer, const flatbuffers::Vec
             printer.Key("Locale", file->locale()->c_str());
         if (file->version() != nullptr)
             printer.Key("Version", file->version()->c_str());
-        if (file->name() == nullptr || model_data == nullptr || model_size == 0)
+        if (file->name() == nullptr || file->name()->size() == 0 || model_data == nullptr || model_size == 0)
             continue;
         EmbeddedFileReader reader(model_data, model_size);
         std::vector<uint8_t> file_data;
