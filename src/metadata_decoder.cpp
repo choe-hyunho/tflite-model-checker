@@ -602,10 +602,14 @@ static void PrintAssociatedFiles(ConsolePrinter& printer, const flatbuffers::Vec
         char title[32];
         snprintf(title, sizeof(title), "Associated File %zu", i);
         printer.SubSection(title);
-        if (file->name() == nullptr || file->name()->size() == 0)
+        if (file->name() == nullptr || file->name()->size() == 0) {
             printer.Key("Status", "Missing name");
-        if (file->name() != nullptr)
+        } else if (memchr(file->name()->data(), '\0', file->name()->size()) != nullptr) {
+            printer.Key("Status", "Name contains embedded NUL byte");
+            continue;
+        } else {
             printer.Key("Name", file->name()->c_str());
+        }
         if (file->description() != nullptr)
             printer.Key("Description", file->description()->c_str());
         const char* type_name = tflite::EnumNameAssociatedFileType(file->type());
