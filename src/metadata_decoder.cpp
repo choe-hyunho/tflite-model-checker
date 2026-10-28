@@ -610,8 +610,12 @@ static void PrintAssociatedFiles(ConsolePrinter& printer, const flatbuffers::Vec
         } else {
             printer.Key("Name", file->name()->c_str());
         }
-        if (file->description() != nullptr)
-            printer.Key("Description", file->description()->c_str());
+        if (file->description() != nullptr) {
+            if (memchr(file->description()->data(), '\0', file->description()->size()) != nullptr)
+                printer.Key("Description Status", "Contains embedded NUL byte");
+            else
+                printer.Key("Description", file->description()->c_str());
+        }
         const char* type_name = tflite::EnumNameAssociatedFileType(file->type());
         printer.Key("Type", AssociatedFileTypeDescription(file->type()));
         if (type_name != nullptr && type_name[0] != '\0') {
