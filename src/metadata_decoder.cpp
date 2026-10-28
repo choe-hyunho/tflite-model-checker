@@ -629,8 +629,12 @@ static void PrintAssociatedFiles(ConsolePrinter& printer, const flatbuffers::Vec
             else
                 printer.Key("Locale", file->locale()->c_str());
         }
-        if (file->version() != nullptr)
-            printer.Key("Version", file->version()->c_str());
+        if (file->version() != nullptr) {
+            if (memchr(file->version()->data(), '\0', file->version()->size()) != nullptr)
+                printer.Key("Version Status", "Contains embedded NUL byte");
+            else
+                printer.Key("Version", file->version()->c_str());
+        }
         if (file->name() == nullptr || file->name()->size() == 0 || model_data == nullptr || model_size == 0)
             continue;
         EmbeddedFileReader reader(model_data, model_size);
