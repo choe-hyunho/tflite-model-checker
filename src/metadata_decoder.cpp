@@ -847,8 +847,11 @@ static bool FindModelTensorByName(const tflite::SubGraph* model_subgraph, const 
     const auto* tensors = model_subgraph->tensors();
     for (size_t i = 0; i < tensors->size(); ++i) {
         const auto* tensor = tensors->Get(i);
-        if (tensor != nullptr && tensor->name() != nullptr &&
-            strcmp(tensor->name()->c_str(), name) == 0)
+        if (tensor == nullptr || tensor->name() == nullptr)
+            continue;
+        if (memchr(tensor->name()->data(), '\0', tensor->name()->size()) != nullptr)
+            continue;
+        if (strcmp(tensor->name()->c_str(), name) == 0)
             return true;
     }
     return false;
@@ -883,29 +886,32 @@ static void PrintTensorGroups(ConsolePrinter& printer, const char* title, const 
         printer.Key("Tensor Count", static_cast<size_t>(tensor_names->size()));
         for (size_t j = 0; j < tensor_names->size(); ++j) {
             const auto* name = tensor_names->Get(j);
-            printer.Key("Tensor Index", j);
+            printer.Key("Tensor", j);
             if (name == nullptr) {
-                printer.Key("Tensor Status", "Missing tensor name");
+                printer.Key("Status", "Missing tensor name");
                 continue;
             }
             if (name->size() == 0) {
-                printer.Key("Tensor Status", "Empty tensor name");
+                printer.Key("Status", "Empty tensor name");
+                continue;
+            }
+            if (memchr(name->data(), '\0', name->size()) != nullptr) {
+                printer.Key("Status", "Tensor name contains embedded NUL byte");
                 continue;
             }
             bool duplicate = false;
             for (size_t k = 0; k < j; ++k) {
                 const auto* previous_name = tensor_names->Get(k);
-                if (previous_name != nullptr && previous_name->size() > 0 &&
-                    previous_name->str() == name->str()) {
+                if (previous_name != nullptr && previous_name->size() > 0 && memchr(previous_name->data(), '\0', previous_name->size()) == nullptr && previous_name->str() == name->str()) {
                     duplicate = true;
                     break;
                 }
             }
+            printer.Key("Name", name->c_str());
             if (duplicate)
-                printer.Key("Tensor Status", "Duplicate tensor name");
-            printer.Key("Tensor Name", name->c_str());
+                printer.Key("Status", "Duplicate tensor name");
             if (!FindModelTensorByName(model_subgraph, name->c_str()))
-                printer.Key("Tensor Status", "Not found in model");
+                printer.Key("Status", "Not found in model");
         }
     }
 }
