@@ -793,6 +793,8 @@ static void PrintProcessUnits(ConsolePrinter& printer, const char* name, const f
             const auto* pattern = options->delim_regex_pattern();
             if (pattern == nullptr || pattern->size() == 0) {
                 printer.Key("Status", "Missing delimiter regex");
+            } else if (memchr(pattern->data(), '\0', pattern->size()) != nullptr) {
+                printer.Key("Status", "Delimiter regex contains embedded NUL byte");
             } else {
                 printer.Key("Delimiter Regex", pattern->c_str());
             }
