@@ -867,10 +867,13 @@ static void PrintTensorGroups(ConsolePrinter& printer, const char* title, const 
             continue;
         }
         printer.Key("Group", i);
-        if (group->name() == nullptr || group->name()->size() == 0)
+        if (group->name() == nullptr || group->name()->size() == 0) {
             printer.Key("Status", "Missing name");
-        else
+        } else if (memchr(group->name()->data(), '\0', group->name()->size()) != nullptr) {
+            printer.Key("Name Status", "Contains embedded NUL byte");
+        } else {
             printer.Key("Name", group->name()->c_str());
+        }
         const auto* tensor_names = group->tensor_names();
         if (tensor_names == nullptr || tensor_names->size() == 0) {
             printer.Key("Tensor Count", static_cast<size_t>(0));
